@@ -16,14 +16,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { Label } from "@/components/ui/label";
 
 interface FoodItem {
@@ -453,36 +445,54 @@ const InventorySetup = () => {
               <div className="space-y-4">
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <Command className="border rounded-md">
-                      <CommandInput placeholder="Search for food items..." value={searchQuery} onValueChange={setSearchQuery} />
-                      <CommandList>
-                        {searchQuery.length >= 2 && (
-                          <>
-                            <CommandEmpty>
-                              <div className="space-y-2 p-2">
-                                <p className="text-sm text-muted-foreground">No items found in database</p>
-                                <Button variant="outline" size="sm" onClick={openCustomItemDialog} className="w-full">
-                                  <Plus className="w-4 h-4 mr-2" />
-                                  Add "{searchQuery}" as custom item
-                                </Button>
+                    <Input
+                      placeholder="Search for food items (min 2 characters)..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full"
+                    />
+                    {searchQuery.length >= 2 && (
+                      <div className="mt-2 border rounded-md max-h-64 overflow-y-auto bg-background">
+                        {filteredFoods.length > 0 ? (
+                          <div className="p-2 space-y-1">
+                            {filteredFoods.map((food, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => addFromDatabase(food)}
+                                className="p-3 hover:bg-muted rounded-md cursor-pointer flex justify-between items-center transition-colors"
+                              >
+                                <span className="font-medium">{food.food}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {Math.round(food["Caloric Value"] || 0)} cal
+                                </span>
                               </div>
-                            </CommandEmpty>
-                            <CommandGroup heading="Food Database">
-                              {filteredFoods.map((food, idx) => (
-                                <CommandItem key={idx} onSelect={() => addFromDatabase(food)} className="cursor-pointer">
-                                  <div className="flex justify-between w-full">
-                                    <span>{food.food}</span>
-                                    <span className="text-xs text-muted-foreground">{Math.round(food["Caloric Value"] || 0)} cal</span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 text-center space-y-2">
+                            <p className="text-sm text-muted-foreground">No items found in database</p>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={openCustomItemDialog}
+                              className="w-full"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add "{searchQuery}" as custom item
+                            </Button>
+                          </div>
                         )}
-                      </CommandList>
-                    </Command>
+                      </div>
+                    )}
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => { setShowManualAdd(false); setSearchQuery(""); }}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setShowManualAdd(false);
+                      setSearchQuery("");
+                    }}
+                  >
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
@@ -503,25 +513,38 @@ const InventorySetup = () => {
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {displayedFoods.map((food, index) => (
-              <Card key={`${food.id}-${index}`} className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary" onClick={() => selectFood(food, index)}>
-                <div className="text-center space-y-2">
-                  <h3 className="font-medium text-sm capitalize line-clamp-2">{food.food}</h3>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <div className="font-semibold">{Math.round(food.calories)} cal</div>
-                    <div className="text-[10px] text-muted-foreground/70">per 100g</div>
-                    <div className="flex justify-between">
-                      <span>P: {food.protein.toFixed(1)}g</span>
-                      <span>C: {food.carbs.toFixed(1)}g</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>F: {food.fat.toFixed(1)}g</span>
-                      <span>Fib: {food.fiber.toFixed(1)}g</span>
+            {displayedFoods.map((food, index) => {
+              // Assign colors based on category
+              const categoryColors = {
+                fridge: "from-blue-500/10 to-cyan-500/10 hover:from-blue-500/20 hover:to-cyan-500/20 border-blue-500/20",
+                freezer: "from-purple-500/10 to-indigo-500/10 hover:from-purple-500/20 hover:to-indigo-500/20 border-purple-500/20",
+                pantry: "from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border-amber-500/20"
+              };
+              
+              return (
+                <Card 
+                  key={`${food.id}-${index}`} 
+                  className={`p-4 cursor-pointer transition-all hover:shadow-lg hover:scale-105 bg-gradient-to-br ${categoryColors[step]}`}
+                  onClick={() => selectFood(food, index)}
+                >
+                  <div className="text-center space-y-2">
+                    <h3 className="font-medium text-sm capitalize line-clamp-2">{food.food}</h3>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="font-semibold">{Math.round(food.calories)} cal</div>
+                      <div className="text-[10px] text-muted-foreground/70">per 100g</div>
+                      <div className="flex justify-between">
+                        <span>P: {food.protein.toFixed(1)}g</span>
+                        <span>C: {food.carbs.toFixed(1)}g</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>F: {food.fat.toFixed(1)}g</span>
+                        <span>Fib: {food.fiber.toFixed(1)}g</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
 
