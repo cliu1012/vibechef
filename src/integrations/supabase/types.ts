@@ -21,6 +21,7 @@ export type Database = {
           display_order: number
           food_name: string
           id: string
+          image_url: string | null
         }
         Insert: {
           category: string
@@ -28,6 +29,7 @@ export type Database = {
           display_order?: number
           food_name: string
           id?: string
+          image_url?: string | null
         }
         Update: {
           category?: string
@@ -35,6 +37,7 @@ export type Database = {
           display_order?: number
           food_name?: string
           id?: string
+          image_url?: string | null
         }
         Relationships: []
       }
