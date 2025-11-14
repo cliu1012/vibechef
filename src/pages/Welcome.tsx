@@ -19,22 +19,18 @@ const Welcome = () => {
 
           {/* Brand Name */}
           <div className="mb-4">
-            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <h2 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               VibeChef
             </h2>
           </div>
 
           {/* Headline */}
           <div className="space-y-4">
-            <h1 className="text-4xl md:text-6xl font-bold text-foreground leading-tight">
-              Make Smarter Meals From{" "}
-              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                What You Already Have
-              </span>
+            <h1 className="text-2xl md:text-3xl font-semibold text-foreground leading-tight">
+              Cook Smarter. Waste Less. Eat Better.
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Stop wasting food and money. Get personalized meal suggestions based on your inventory, 
-              preferences, and goals—all powered by AI.
+            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
+              Get AI-powered meal ideas from your actual fridge—tailored to your taste, time, and nutrition goals.
             </p>
           </div>
 
