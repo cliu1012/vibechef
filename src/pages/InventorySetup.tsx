@@ -19,6 +19,7 @@ import {
 import { Label } from "@/components/ui/label";
 
 interface FoodItem {
+  id: string;
   food: string;
   calories: number;
   protein: number;
@@ -38,8 +39,9 @@ const InventorySetup = () => {
   const { user } = useAuth();
   const [step, setStep] = useState<"fridge" | "freezer" | "pantry">("fridge");
   const [allFoods, setAllFoods] = useState<FoodItem[]>([]);
+  const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
   const [displayedFoods, setDisplayedFoods] = useState<FoodItem[]>([]);
-  const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
+  const [currentPage, setCurrentPage] = useState(0);
   const [selectedItems, setSelectedItems] = useState<{
     fridge: SelectedItem[];
     freezer: SelectedItem[];
@@ -55,40 +57,22 @@ const InventorySetup = () => {
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    loadAllFoodData();
+    loadFoodDatabase();
   }, []);
+
+  useEffect(() => {
+    if (foodDatabase.length > 0) {
+      loadCommonItems();
+    }
+  }, [foodDatabase.length]);
 
   useEffect(() => {
     if (allFoods.length > 0) {
       loadDisplayedFoods();
     }
-  }, [allFoods, step]);
+  }, [allFoods, step, currentPage]);
 
-  const categorizeFood = (foodName: string): "fridge" | "freezer" | "pantry" => {
-    const name = foodName.toLowerCase();
-    
-    // Freezer items
-    const freezerKeywords = ["ice cream", "frozen", "popsicle", "sorbet"];
-    if (freezerKeywords.some(keyword => name.includes(keyword))) {
-      return "freezer";
-    }
-    
-    // Fridge items
-    const fridgeKeywords = [
-      "milk", "cheese", "yogurt", "butter", "cream", "egg",
-      "meat", "chicken", "beef", "pork", "fish", "salmon", "tuna",
-      "lettuce", "spinach", "kale", "broccoli", "carrot", "celery",
-      "juice", "fresh", "berries", "strawberry", "blueberry"
-    ];
-    if (fridgeKeywords.some(keyword => name.includes(keyword))) {
-      return "fridge";
-    }
-    
-    // Default to pantry
-    return "pantry";
-  };
-
-  const loadAllFoodData = async () => {
+  const loadFoodDatabase = async () => {
     const datasets = [
       "/src/assets/data/FOOD-DATA-GROUP1.csv",
       "/src/assets/data/FOOD-DATA-GROUP2.csv",
@@ -102,87 +86,69 @@ const InventorySetup = () => {
         datasets.map(async (url) => {
           const response = await fetch(url);
           const csvText = await response.text();
-          return new Promise<FoodItem[]>((resolve) => {
+          return new Promise<any[]>((resolve) => {
             Papa.parse(csvText, {
               header: true,
               dynamicTyping: true,
               skipEmptyLines: true,
               complete: (results) => {
-                const items = (results.data as any[])
-                  .filter((item) => item.food && item["Caloric Value"])
-                  .map((item) => ({
-                    food: item.food,
-                    calories: parseFloat(item["Caloric Value"]) || 0,
-                    protein: parseFloat(item.Protein) || 0,
-                    carbs: parseFloat(item.Carbohydrates) || 0,
-                    fat: parseFloat(item.Fat) || 0,
-                    fiber: parseFloat(item["Dietary Fiber"]) || 0,
-                    category: categorizeFood(item.food),
-                  }));
-                resolve(items);
+                resolve(results.data);
               },
             });
           });
         })
       );
       
-      const combined = allData.flat();
-      setAllFoods(combined);
-      setLoadingData(false);
+      setFoodDatabase(allData.flat());
     } catch (error) {
       console.error("Error loading food database:", error);
-      toast.error("Failed to load food data");
+    }
+  };
+
+  const loadCommonItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("common_items")
+        .select("*")
+        .order("display_order");
+
+      if (error) throw error;
+
+      // Match with nutrition data from CSV
+      const itemsWithNutrition = (data || []).map((item) => {
+        const nutritionData = foodDatabase.find(
+          (food) => food.food && food.food.toLowerCase().includes(item.food_name.toLowerCase())
+        );
+
+        return {
+          id: item.id,
+          food: item.food_name,
+          category: item.category as "fridge" | "freezer" | "pantry",
+          calories: nutritionData?.["Caloric Value"] || 0,
+          protein: nutritionData?.Protein || 0,
+          carbs: nutritionData?.Carbohydrates || 0,
+          fat: nutritionData?.Fat || 0,
+          fiber: nutritionData?.["Dietary Fiber"] || 0,
+        };
+      });
+
+      setAllFoods(itemsWithNutrition);
+      setLoadingData(false);
+    } catch (error) {
+      console.error("Error loading common items:", error);
+      toast.error("Failed to load food items");
       setLoadingData(false);
     }
   };
 
   const loadDisplayedFoods = () => {
     const categoryFoods = allFoods.filter((food) => food.category === step);
-    const availableIndices = categoryFoods
-      .map((_, idx) => idx)
-      .filter((idx) => !usedIndices.has(idx));
-
-    if (availableIndices.length < 8) {
-      // Reset if we don't have enough
-      setUsedIndices(new Set());
-      const shuffled = categoryFoods.sort(() => Math.random() - 0.5).slice(0, 8);
-      setDisplayedFoods(shuffled);
-      return;
-    }
-
-    // Shuffle and pick 8
-    const shuffled = availableIndices.sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, 8);
-    
-    setDisplayedFoods(selected.map((idx) => categoryFoods[idx]));
+    const startIdx = currentPage * 8;
+    const endIdx = startIdx + 8;
+    setDisplayedFoods(categoryFoods.slice(startIdx, endIdx));
   };
 
-  const replaceDisplayedFood = (index: number) => {
-    const categoryFoods = allFoods.filter((food) => food.category === step);
-    const availableIndices = categoryFoods
-      .map((_, idx) => idx)
-      .filter((idx) => !usedIndices.has(idx));
-
-    if (availableIndices.length === 0) {
-      // Reload all if we run out
-      setUsedIndices(new Set());
-      loadDisplayedFoods();
-      return;
-    }
-
-    const randomIndex =
-      availableIndices[Math.floor(Math.random() * availableIndices.length)];
-    
-    setUsedIndices((prev) => new Set([...prev, randomIndex]));
-    
-    setDisplayedFoods((prev) => {
-      const newFoods = [...prev];
-      newFoods[index] = categoryFoods[randomIndex];
-      return newFoods;
-    });
-  };
-
-  const selectFood = (food: FoodItem, index: number) => {
+  const selectFood = (food: FoodItem) => {
     const newItem: SelectedItem = {
       ...food,
       quantity: 1,
@@ -195,7 +161,6 @@ const InventorySetup = () => {
     }));
     
     toast.success(`Added ${food.food}`);
-    replaceDisplayedFood(index);
   };
 
   const removeItem = (index: number) => {
@@ -237,9 +202,15 @@ const InventorySetup = () => {
   };
 
   const handleNext = () => {
-    if (step === "fridge") setStep("freezer");
-    else if (step === "freezer") setStep("pantry");
-    else handleComplete();
+    if (step === "fridge") {
+      setStep("freezer");
+      setCurrentPage(0);
+    } else if (step === "freezer") {
+      setStep("pantry");
+      setCurrentPage(0);
+    } else {
+      handleComplete();
+    }
   };
 
   const handleComplete = async () => {
@@ -288,6 +259,11 @@ const InventorySetup = () => {
       setLoading(false);
     }
   };
+
+  const categoryFoods = allFoods.filter((food) => food.category === step);
+  const totalPages = Math.ceil(categoryFoods.length / 8);
+  const hasNextPage = currentPage < totalPages - 1;
+  const hasPrevPage = currentPage > 0;
 
   if (loadingData) {
     return (
@@ -338,21 +314,43 @@ const InventorySetup = () => {
 
         {/* Common Foods Grid */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Common Items</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Common Items</h2>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => p - 1)}
+                disabled={!hasPrevPage}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground px-3 py-2">
+                {currentPage + 1} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => p + 1)}
+                disabled={!hasNextPage}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {displayedFoods.map((food, index) => (
+            {displayedFoods.map((food) => (
               <Card
-                key={`${food.food}-${index}`}
+                key={food.id}
                 className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary"
-                onClick={() => selectFood(food, index)}
+                onClick={() => selectFood(food)}
               >
                 <div className="text-center space-y-2">
-                  <div className="text-4xl mb-2">🥘</div>
-                  <h3 className="font-medium text-sm line-clamp-2">
+                  <h3 className="font-medium text-sm capitalize line-clamp-2">
                     {food.food}
                   </h3>
                   <div className="text-xs text-muted-foreground space-y-1">
-                    <div>{food.calories} cal</div>
+                    <div>{Math.round(food.calories)} cal</div>
                     <div className="flex justify-between">
                       <span>P: {food.protein.toFixed(1)}g</span>
                       <span>C: {food.carbs.toFixed(1)}g</span>
@@ -379,9 +377,9 @@ const InventorySetup = () => {
                 <Card key={index} className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-medium">{item.food}</h3>
+                      <h3 className="font-medium capitalize">{item.food}</h3>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {item.calories} cal | P: {item.protein.toFixed(1)}g | C:{" "}
+                        {Math.round(item.calories)} cal | P: {item.protein.toFixed(1)}g | C:{" "}
                         {item.carbs.toFixed(1)}g | F: {item.fat.toFixed(1)}g
                       </div>
                     </div>
@@ -430,8 +428,13 @@ const InventorySetup = () => {
           <Button
             variant="outline"
             onClick={() => {
-              if (step === "freezer") setStep("fridge");
-              else if (step === "pantry") setStep("freezer");
+              if (step === "freezer") {
+                setStep("fridge");
+                setCurrentPage(0);
+              } else if (step === "pantry") {
+                setStep("freezer");
+                setCurrentPage(0);
+              }
             }}
             disabled={step === "fridge"}
           >
