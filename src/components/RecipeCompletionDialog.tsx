@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Star, Check, Bookmark } from "lucide-react";
+import { Star, Check, Bookmark, AlertCircle, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +43,54 @@ export const RecipeCompletionDialog = ({
   const [finishedIngredients, setFinishedIngredients] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inventoryStatus, setInventoryStatus] = useState<{
+    updated: string[];
+    missing: string[];
+  }>({ updated: [], missing: [] });
+
+  // Load inventory status when dialog opens
+  useEffect(() => {
+    if (open && user) {
+      loadInventoryStatus();
+    }
+  }, [open, user]);
+
+  const loadInventoryStatus = async () => {
+    if (!user) return;
+
+    try {
+      // Get user's inventory
+      const { data: inventory } = await supabase
+        .from("user_inventory")
+        .select("custom_name, quantity")
+        .eq("user_id", user.id);
+
+      if (!inventory) return;
+
+      const inventoryMap = new Map(
+        inventory.map((item) => [item.custom_name?.toLowerCase(), item.quantity])
+      );
+
+      const updated: string[] = [];
+      const missing: string[] = [];
+
+      // Check each ingredient
+      ingredients.forEach((ing) => {
+        const ingredientName = ing.raw_text.toLowerCase();
+        const quantity = inventoryMap.get(ingredientName);
+
+        if (quantity && quantity > 0) {
+          updated.push(ing.raw_text);
+        } else {
+          missing.push(ing.raw_text);
+        }
+      });
+
+      setInventoryStatus({ updated, missing });
+    } catch (error) {
+      console.error("Error loading inventory status:", error);
+    }
+  };
 
   const handleComplete = async () => {
     if (!user) return;
@@ -68,67 +118,78 @@ export const RecipeCompletionDialog = ({
           });
       }
 
-      // Handle finished ingredients
-      if (finishedIngredients.length > 0) {
-        // Get inventory items matching these ingredients
-        const { data: inventoryItems } = await supabase
-          .from("user_inventory")
-          .select("*")
-          .eq("user_id", user.id);
+      // Log the cooking event
+      await supabase.from("cooked_recipes_log").insert({
+        user_id: user.id,
+        recipe_id: recipeId,
+      });
 
-        if (inventoryItems) {
-          const itemsToRemove: string[] = [];
-          const itemsToAddToGrocery: Array<{ name: string; quantity: number; unit: string }> = [];
+      // Update inventory - subtract 1 from each ingredient in stock
+      const { data: inventoryItems } = await supabase
+        .from("user_inventory")
+        .select("*")
+        .eq("user_id", user.id);
 
-          finishedIngredients.forEach((ingredientId) => {
-            const ingredient = ingredients.find((i) => i.id === ingredientId);
-            if (!ingredient) return;
+      if (inventoryItems) {
+        const inventoryMap = new Map(
+          inventoryItems.map((item) => [item.custom_name?.toLowerCase(), item])
+        );
 
-            const ingredientText = ingredient.raw_text.toLowerCase();
-            const matchingItem = inventoryItems.find((item) => {
-              const itemName = (item.custom_name || "").toLowerCase();
-              return itemName && ingredientText.includes(itemName);
-            });
+        for (const ing of ingredients) {
+          const ingredientName = ing.raw_text.toLowerCase();
+          const inventoryItem = inventoryMap.get(ingredientName);
 
-            if (matchingItem) {
-              itemsToRemove.push(matchingItem.id);
-              itemsToAddToGrocery.push({
-                name: matchingItem.custom_name || ingredient.raw_text,
-                quantity: matchingItem.quantity,
-                unit: matchingItem.unit,
-              });
-            } else {
-              itemsToAddToGrocery.push({
-                name: ingredient.raw_text,
-                quantity: ingredient.quantity || 1,
-                unit: ingredient.unit || "serving",
-              });
-            }
-          });
+          if (inventoryItem && inventoryItem.quantity > 0) {
+            const newQuantity = Math.max(0, inventoryItem.quantity - 1);
 
-          // Remove from inventory
-          if (itemsToRemove.length > 0) {
             await supabase
               .from("user_inventory")
-              .delete()
-              .in("id", itemsToRemove);
+              .update({ quantity: newQuantity })
+              .eq("id", inventoryItem.id);
           }
-
-          // Add to grocery list
-          const groceryItems = itemsToAddToGrocery.map((item) => ({
-            user_id: user.id,
-            item_name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            source: "recipe",
-            recipe_id: recipeId,
-          }));
-
-          await supabase.from("grocery_list").insert(groceryItems);
         }
       }
 
-      toast.success("Recipe completed!");
+      // Handle finished ingredients - remove from inventory and add to grocery list
+      if (finishedIngredients.length > 0 && inventoryItems) {
+        for (const ingredientId of finishedIngredients) {
+          const ingredient = ingredients.find((i) => i.id === ingredientId);
+          if (!ingredient) continue;
+
+          const ingredientName = ingredient.raw_text.toLowerCase();
+          const matchingItem = inventoryItems.find(
+            (item) => item.custom_name?.toLowerCase() === ingredientName
+          );
+
+          // Remove from inventory
+          if (matchingItem) {
+            await supabase
+              .from("user_inventory")
+              .delete()
+              .eq("id", matchingItem.id);
+          }
+
+          // Add to grocery list
+          await supabase.from("grocery_list").insert({
+            user_id: user.id,
+            item_name: ingredient.raw_text,
+            quantity: 1,
+            unit: "serving",
+            source: "recipe",
+            recipe_id: recipeId,
+          });
+        }
+      }
+
+      let message = "Recipe cooked!";
+      if (inventoryStatus.missing.length > 0) {
+        message += ` Missing ingredients: ${inventoryStatus.missing.slice(0, 3).join(", ")}`;
+        if (inventoryStatus.missing.length > 3) {
+          message += ` +${inventoryStatus.missing.length - 3} more`;
+        }
+      }
+
+      toast.success(message);
       onOpenChange(false);
     } catch (error) {
       console.error("Error completing recipe:", error);
