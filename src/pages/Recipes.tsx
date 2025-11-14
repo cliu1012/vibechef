@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,25 @@ import {
   ChefHat,
   Sparkles,
   Filter,
+  ShoppingCart,
+  CheckCircle2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+interface RecipeIngredient {
+  name: string;
+  quantity: number;
+  unit: string;
+}
 
 interface Recipe {
   id: string;
@@ -24,12 +42,36 @@ interface Recipe {
   matchScore: number;
   image: string;
   tags: string[];
+  ingredients: RecipeIngredient[];
+}
+
+interface RecipeWithMatch extends Recipe {
+  ingredientMatch: { 
+    percentage: number; 
+    haveCount: number; 
+    totalCount: number;
+  };
+}
+
+interface InventoryItem {
+  id: string;
+  custom_name: string | null;
+  quantity: number;
+  unit: string;
+  food_id: string | null;
+  food_database?: {
+    name: string;
+  };
 }
 
 const Recipes = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeWithMatch | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Mock recipe data
+  // Mock recipe data with ingredients
   const recipes: Recipe[] = [
     {
       id: "1",
@@ -41,6 +83,12 @@ const Recipes = () => {
       matchScore: 95,
       image: "🍗",
       tags: ["High Protein", "Balanced"],
+      ingredients: [
+        { name: "Chicken Breast", quantity: 200, unit: "g" },
+        { name: "Rice", quantity: 150, unit: "g" },
+        { name: "Olive Oil", quantity: 1, unit: "tbsp" },
+        { name: "Garlic", quantity: 2, unit: "cloves" },
+      ],
     },
     {
       id: "2",
@@ -52,6 +100,12 @@ const Recipes = () => {
       matchScore: 88,
       image: "🥗",
       tags: ["Vegetarian", "Quick"],
+      ingredients: [
+        { name: "Broccoli", quantity: 200, unit: "g" },
+        { name: "Carrots", quantity: 100, unit: "g" },
+        { name: "Bell Pepper", quantity: 1, unit: "piece" },
+        { name: "Soy Sauce", quantity: 2, unit: "tbsp" },
+      ],
     },
     {
       id: "3",
@@ -63,12 +117,125 @@ const Recipes = () => {
       matchScore: 82,
       image: "🍝",
       tags: ["Vegetarian", "Comfort Food"],
+      ingredients: [
+        { name: "Pasta", quantity: 200, unit: "g" },
+        { name: "Tomatoes", quantity: 300, unit: "g" },
+        { name: "Garlic", quantity: 3, unit: "cloves" },
+        { name: "Olive Oil", quantity: 2, unit: "tbsp" },
+      ],
     },
   ];
 
-  const filteredRecipes = recipes.filter((recipe) =>
+  useEffect(() => {
+    loadInventory();
+  }, [user]);
+
+  const loadInventory = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("user_inventory")
+      .select(`
+        id,
+        custom_name,
+        quantity,
+        unit,
+        food_id,
+        food_database (
+          name
+        )
+      `)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error loading inventory:", error);
+      return;
+    }
+
+    setInventory(data || []);
+  };
+
+  const calculateIngredientMatch = (recipe: Recipe) => {
+    if (!inventory.length) return { percentage: 0, haveCount: 0, totalCount: recipe.ingredients.length };
+
+    let haveCount = 0;
+    
+    recipe.ingredients.forEach((ingredient) => {
+      const matchingItem = inventory.find((item) => {
+        const itemName = item.custom_name || item.food_database?.name || "";
+        return itemName.toLowerCase().includes(ingredient.name.toLowerCase()) ||
+               ingredient.name.toLowerCase().includes(itemName.toLowerCase());
+      });
+
+      if (matchingItem && matchingItem.quantity >= ingredient.quantity) {
+        haveCount++;
+      }
+    });
+
+    const percentage = Math.round((haveCount / recipe.ingredients.length) * 100);
+    return { percentage, haveCount, totalCount: recipe.ingredients.length };
+  };
+
+  const handleCookRecipe = async (recipe: RecipeWithMatch) => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      // Update inventory by deducting ingredients
+      for (const ingredient of recipe.ingredients) {
+        const matchingItem = inventory.find((item) => {
+          const itemName = item.custom_name || item.food_database?.name || "";
+          return itemName.toLowerCase().includes(ingredient.name.toLowerCase()) ||
+                 ingredient.name.toLowerCase().includes(itemName.toLowerCase());
+        });
+
+        if (matchingItem) {
+          const newQuantity = Math.max(0, matchingItem.quantity - ingredient.quantity);
+          
+          if (newQuantity === 0) {
+            // Delete item if quantity reaches 0
+            await supabase
+              .from("user_inventory")
+              .delete()
+              .eq("id", matchingItem.id);
+          } else {
+            // Update quantity
+            await supabase
+              .from("user_inventory")
+              .update({ quantity: newQuantity })
+              .eq("id", matchingItem.id);
+          }
+        }
+      }
+
+      toast.success(`Cooked ${recipe.name}! Inventory updated.`);
+      setSelectedRecipe(null);
+      loadInventory(); // Reload inventory
+    } catch (error) {
+      console.error("Error cooking recipe:", error);
+      toast.error("Failed to update inventory. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recipesWithMatch = recipes.map((recipe) => ({
+    ...recipe,
+    ingredientMatch: calculateIngredientMatch(recipe),
+  }));
+
+  const filteredRecipes = recipesWithMatch.filter((recipe) =>
     recipe.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getDifficultyColor = (difficulty: string) => {
+    const colors = {
+      easy: "bg-green-500/10 text-green-500",
+      medium: "bg-yellow-500/10 text-yellow-500",
+      hard: "bg-red-500/10 text-red-500",
+    };
+    return colors[difficulty as keyof typeof colors] || colors.easy;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
@@ -95,15 +262,12 @@ const Recipes = () => {
                 AI Recommendation
               </h3>
               <p className="text-sm text-muted-foreground mb-3">
-                Based on your inventory, you can make <strong>12 recipes</strong> right
-                now without shopping!
+                Based on your inventory, you have ingredients for{" "}
+                <strong>
+                  {recipesWithMatch.filter((r) => r.ingredientMatch.percentage === 100).length} recipes
+                </strong>{" "}
+                without shopping!
               </p>
-              <Button
-                size="sm"
-                className="bg-gradient-to-r from-primary to-accent"
-              >
-                Show Me Recipes
-              </Button>
             </div>
           </div>
         </Card>
@@ -126,115 +290,231 @@ const Recipes = () => {
         </div>
 
         {/* Quick Filters */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          <Badge
-            variant="secondary"
-            className="cursor-pointer hover:bg-secondary/80 whitespace-nowrap"
-          >
-            <Clock className="w-3 h-3 mr-1" />
-            Under 20 min
-          </Badge>
-          <Badge
-            variant="secondary"
-            className="cursor-pointer hover:bg-secondary/80 whitespace-nowrap"
-          >
-            <Flame className="w-3 h-3 mr-1" />
-            Low Calorie
-          </Badge>
-          <Badge
-            variant="secondary"
-            className="cursor-pointer hover:bg-secondary/80 whitespace-nowrap"
-          >
-            High Protein
-          </Badge>
-          <Badge
-            variant="secondary"
-            className="cursor-pointer hover:bg-secondary/80 whitespace-nowrap"
-          >
-            Vegetarian
-          </Badge>
-        </div>
+        <Tabs defaultValue="all" className="mb-6">
+          <TabsList>
+            <TabsTrigger value="all">All Recipes</TabsTrigger>
+            <TabsTrigger value="canMake">
+              Can Make Now ({recipesWithMatch.filter((r) => r.ingredientMatch.percentage === 100).length})
+            </TabsTrigger>
+            <TabsTrigger value="quick">Quick & Easy</TabsTrigger>
+            <TabsTrigger value="highProtein">High Protein</TabsTrigger>
+          </TabsList>
 
-        {/* Recipe Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRecipes.map((recipe) => (
-            <Card
-              key={recipe.id}
-              className="overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer group"
-            >
-              {/* Image Placeholder */}
-              <div className="h-48 bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
-                {recipe.image}
-              </div>
-
-              {/* Content */}
-              <div className="p-4 space-y-3">
-                {/* Match Score */}
-                <div className="flex items-center justify-between">
-                  <Badge className="bg-success text-white">
-                    {recipe.matchScore}% Match
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {recipe.difficulty}
-                  </Badge>
-                </div>
-
-                {/* Title */}
-                <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">
-                  {recipe.name}
-                </h3>
-
-                {/* Stats */}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    {recipe.time}m
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Flame className="w-4 h-4" />
-                    {recipe.calories} cal
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <ChefHat className="w-4 h-4" />
-                    {recipe.protein}g protein
-                  </div>
-                </div>
-
-                {/* Tags */}
-                <div className="flex gap-2 flex-wrap">
-                  {recipe.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="outline"
-                      className="text-xs border-primary/20"
-                    >
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-
-                {/* CTA */}
-                <Button className="w-full bg-gradient-to-r from-primary to-accent">
-                  View Recipe
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Empty State */}
-        {filteredRecipes.length === 0 && (
-          <Card className="p-12 text-center">
-            <ChefHat className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-semibold text-lg text-foreground mb-2">
-              No recipes found
-            </h3>
-            <p className="text-muted-foreground">
-              Try adjusting your search or filters
-            </p>
-          </Card>
-        )}
+          <TabsContent value="all" className="mt-6">
+            <RecipeGrid recipes={filteredRecipes} onSelectRecipe={setSelectedRecipe} />
+          </TabsContent>
+          <TabsContent value="canMake" className="mt-6">
+            <RecipeGrid 
+              recipes={filteredRecipes.filter((r) => r.ingredientMatch.percentage === 100)} 
+              onSelectRecipe={setSelectedRecipe}
+            />
+          </TabsContent>
+          <TabsContent value="quick" className="mt-6">
+            <RecipeGrid 
+              recipes={filteredRecipes.filter((r) => r.time <= 20)} 
+              onSelectRecipe={setSelectedRecipe}
+            />
+          </TabsContent>
+          <TabsContent value="highProtein" className="mt-6">
+            <RecipeGrid 
+              recipes={filteredRecipes.filter((r) => r.protein >= 30)} 
+              onSelectRecipe={setSelectedRecipe}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* Recipe Details Dialog */}
+      <Dialog open={!!selectedRecipe} onOpenChange={() => setSelectedRecipe(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <span className="text-4xl">{selectedRecipe?.image}</span>
+              {selectedRecipe?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedRecipe?.time} mins • {selectedRecipe?.calories} cal • {selectedRecipe?.protein}g protein
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRecipe && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Ingredient Match</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {selectedRecipe.ingredientMatch.percentage}%
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRecipe.ingredientMatch.haveCount} of {selectedRecipe.ingredientMatch.totalCount} ingredients
+                  </p>
+                </div>
+                {selectedRecipe.ingredientMatch.percentage < 100 && (
+                  <Button variant="outline" size="sm">
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Add Missing to List
+                  </Button>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-3">Ingredients</h3>
+                <div className="space-y-2">
+                  {selectedRecipe.ingredients.map((ingredient, index) => {
+                    const hasIngredient = inventory.some((item) => {
+                      const itemName = item.custom_name || item.food_database?.name || "";
+                      return (
+                        itemName.toLowerCase().includes(ingredient.name.toLowerCase()) ||
+                        ingredient.name.toLowerCase().includes(itemName.toLowerCase())
+                      ) && item.quantity >= ingredient.quantity;
+                    });
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-2">
+                          {hasIngredient ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <ShoppingCart className="w-5 h-5 text-muted-foreground" />
+                          )}
+                          <span className={hasIngredient ? "text-foreground" : "text-muted-foreground"}>
+                            {ingredient.name}
+                          </span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {ingredient.quantity} {ingredient.unit}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={() => handleCookRecipe(selectedRecipe)}
+                disabled={loading || selectedRecipe.ingredientMatch.percentage < 100}
+              >
+                <ChefHat className="w-4 h-4 mr-2" />
+                {loading ? "Updating Inventory..." : "Cook This Recipe"}
+              </Button>
+              {selectedRecipe.ingredientMatch.percentage < 100 && (
+                <p className="text-sm text-center text-muted-foreground">
+                  Add missing ingredients to your inventory first
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+interface RecipeGridProps {
+  recipes: RecipeWithMatch[];
+  onSelectRecipe: (recipe: RecipeWithMatch) => void;
+}
+
+const RecipeGrid = ({ recipes, onSelectRecipe }: RecipeGridProps) => {
+  const getDifficultyColor = (difficulty: string) => {
+    const colors = {
+      easy: "bg-green-500/10 text-green-500",
+      medium: "bg-yellow-500/10 text-yellow-500",
+      hard: "bg-red-500/10 text-red-500",
+    };
+    return colors[difficulty as keyof typeof colors] || colors.easy;
+  };
+
+  if (recipes.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <ChefHat className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <p className="text-lg font-medium text-muted-foreground">No recipes found</p>
+        <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {recipes.map((recipe) => (
+        <Card
+          key={recipe.id}
+          className="overflow-hidden hover:shadow-lg transition-all cursor-pointer group"
+          onClick={() => onSelectRecipe(recipe)}
+        >
+          <div className="relative h-32 bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
+            <span className="text-6xl">{recipe.image}</span>
+            <div className="absolute top-2 right-2">
+              <Badge
+                variant="secondary"
+                className={`${
+                  recipe.ingredientMatch.percentage === 100
+                    ? "bg-green-500/10 text-green-500"
+                    : recipe.ingredientMatch.percentage >= 50
+                    ? "bg-yellow-500/10 text-yellow-500"
+                    : "bg-red-500/10 text-red-500"
+                }`}
+              >
+                {recipe.ingredientMatch.percentage}% Match
+              </Badge>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <h3 className="font-semibold text-lg text-foreground mb-2 group-hover:text-primary transition-colors">
+              {recipe.name}
+            </h3>
+
+            <div className="flex flex-wrap gap-2 mb-3">
+              {recipe.tags.map((tag) => (
+                <Badge key={tag} variant="outline" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+              <div className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                <span>{recipe.time} min</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Flame className="w-4 h-4" />
+                <span>{recipe.calories} cal</span>
+              </div>
+              <Badge className={getDifficultyColor(recipe.difficulty)} variant="secondary">
+                {recipe.difficulty}
+              </Badge>
+            </div>
+
+            <div className="pt-3 border-t border-border">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Ingredients:</span>
+                <span className="font-medium text-foreground">
+                  {recipe.ingredientMatch.haveCount}/{recipe.ingredientMatch.totalCount}
+                </span>
+              </div>
+              <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all ${
+                    recipe.ingredientMatch.percentage === 100
+                      ? "bg-green-500"
+                      : recipe.ingredientMatch.percentage >= 50
+                      ? "bg-yellow-500"
+                      : "bg-red-500"
+                  }`}
+                  style={{ width: `${recipe.ingredientMatch.percentage}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 };

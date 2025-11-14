@@ -6,10 +6,15 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Check } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [preferences, setPreferences] = useState({
     dietary: [] as string[],
     calorieGoal: "",
@@ -60,10 +65,34 @@ const Onboarding = () => {
     }));
   };
 
-  const handleComplete = () => {
-    // Store preferences in localStorage for now
-    localStorage.setItem("userPreferences", JSON.stringify(preferences));
-    navigate("/inventory-setup");
+  const handleComplete = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert({
+          id: user.id,
+          dietary_restrictions: preferences.dietary,
+          daily_calorie_goal: preferences.calorieGoal ? parseInt(preferences.calorieGoal) : null,
+          protein_goal_g: preferences.proteinGoal ? parseInt(preferences.proteinGoal) : null,
+          fiber_goal_g: preferences.fiberGoal ? parseInt(preferences.fiberGoal) : null,
+          fat_goal_g: preferences.fatGoal ? parseInt(preferences.fatGoal) : null,
+          carbs_goal_g: preferences.carbsGoal ? parseInt(preferences.carbsGoal) : null,
+          allergies: preferences.allergies,
+        });
+
+      if (error) throw error;
+      
+      toast.success("Preferences saved successfully!");
+      navigate("/inventory-setup");
+    } catch (error) {
+      console.error("Error saving preferences:", error);
+      toast.error("Failed to save preferences. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -342,10 +371,11 @@ const Onboarding = () => {
               </Button>
               <Button
                 onClick={handleComplete}
+                disabled={loading}
                 className="flex-1 bg-gradient-to-r from-primary to-accent shadow-lg hover:shadow-xl"
                 size="lg"
               >
-                Complete Setup
+                {loading ? "Saving..." : "Complete Setup"}
                 <Check className="ml-2 w-5 h-5" />
               </Button>
             </div>
