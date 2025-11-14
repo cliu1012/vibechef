@@ -227,7 +227,17 @@ const Recipes = () => {
   };
 
   const calculateCSVIngredientMatch = (csvRecipe: CSVRecipe) => {
-    const ingredientsList = csvRecipe.ingredients.split(';').map(i => i.trim());
+    // Handle missing or empty ingredients
+    if (!csvRecipe.ingredients) {
+      return {
+        percentage: 0,
+        haveCount: 0,
+        totalCount: 0,
+        missingIngredients: [],
+      };
+    }
+    
+    const ingredientsList = csvRecipe.ingredients.split(';').map(i => i.trim()).filter(i => i);
     
     if (!inventory.length)
       return {
@@ -603,27 +613,35 @@ const Recipes = () => {
                         <div>
                           <h3 className="font-semibold mb-2">Steps</h3>
                           <ol className="list-decimal list-inside space-y-2 text-sm">
-                            {selectedCSVRecipe.steps.split('|').map((step, idx) => (
-                              <li key={idx}>{step.trim()}</li>
-                            ))}
+                            {selectedCSVRecipe.steps ? (
+                              selectedCSVRecipe.steps.split('|').filter(step => step.trim()).map((step, idx) => (
+                                <li key={idx}>{step.trim()}</li>
+                              ))
+                            ) : (
+                              <li className="text-muted-foreground">No steps available</li>
+                            )}
                           </ol>
                         </div>
                 <div>
                   <h3 className="font-semibold mb-2">Ingredients</h3>
                   <ul className="space-y-1">
-                    {selectedCSVRecipe.ingredients.split(';').map((ing, idx) => {
-                      const isMissing = selectedCSVRecipe.ingredientMatch.missingIngredients.includes(ing.trim());
-                      return (
-                        <li key={idx} className="flex items-center gap-2 text-sm">
-                          {isMissing ? (
-                            <AlertCircle className="w-4 h-4 text-orange-500" />
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          )}
-                          <span className={isMissing ? "text-muted-foreground" : ""}>{ing.trim()}</span>
-                        </li>
-                      );
-                    })}
+                    {selectedCSVRecipe.ingredients ? (
+                      selectedCSVRecipe.ingredients.split(';').filter(ing => ing.trim()).map((ing, idx) => {
+                        const isMissing = selectedCSVRecipe.ingredientMatch.missingIngredients.includes(ing.trim());
+                        return (
+                          <li key={idx} className="flex items-center gap-2 text-sm">
+                            {isMissing ? (
+                              <AlertCircle className="w-4 h-4 text-orange-500" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            )}
+                            <span className={isMissing ? "text-muted-foreground" : ""}>{ing.trim()}</span>
+                          </li>
+                        );
+                      })
+                    ) : (
+                      <li className="text-sm text-muted-foreground">No ingredients listed</li>
+                    )}
                   </ul>
                 </div>
               </div>
@@ -674,7 +692,7 @@ const Recipes = () => {
                           cuisine: selectedCSVRecipe.cuisine,
                           difficulty: selectedCSVRecipe.difficulty,
                           total_time_minutes: parseInt(selectedCSVRecipe.time_to_cook_min),
-                          steps: selectedCSVRecipe.steps.split('|').map(s => s.trim()),
+                          steps: selectedCSVRecipe.steps ? selectedCSVRecipe.steps.split('|').map(s => s.trim()).filter(s => s) : null,
                           user_id: user?.id,
                         })
                         .select()
@@ -684,17 +702,22 @@ const Recipes = () => {
 
                       // Save ingredients
                       const ingredientsToInsert = selectedCSVRecipe.ingredients
-                        .split(';')
-                        .map(ing => ({
-                          recipe_id: recipe.id,
-                          raw_text: ing.trim(),
-                        }));
+                        ? selectedCSVRecipe.ingredients
+                            .split(';')
+                            .filter(ing => ing.trim())
+                            .map(ing => ({
+                              recipe_id: recipe.id,
+                              raw_text: ing.trim(),
+                            }))
+                        : [];
 
-                      const { error: ingredientsError } = await supabase
-                        .from('recipe_ingredients')
-                        .insert(ingredientsToInsert);
+                      if (ingredientsToInsert.length > 0) {
+                        const { error: ingredientsError } = await supabase
+                          .from('recipe_ingredients')
+                          .insert(ingredientsToInsert);
 
-                      if (ingredientsError) throw ingredientsError;
+                        if (ingredientsError) throw ingredientsError;
+                      }
 
                       // Save cuisine as tag
                       await supabase
