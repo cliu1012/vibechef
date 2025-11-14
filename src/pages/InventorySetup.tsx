@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Plus, Minus, Edit2, Check } from "lucide-react";
+import { ChevronRight, Plus, Minus, Edit2, Check, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -16,6 +16,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Label } from "@/components/ui/label";
 
 interface FoodItem {
@@ -34,12 +42,21 @@ interface SelectedItem extends FoodItem {
   unit: string;
 }
 
+interface FoodDatabaseItem {
+  food?: string;
+  "Caloric Value"?: number;
+  Protein?: number;
+  Carbohydrates?: number;
+  Fat?: number;
+  "Dietary Fiber"?: number;
+}
+
 const InventorySetup = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState<"fridge" | "freezer" | "pantry">("fridge");
   const [allFoods, setAllFoods] = useState<FoodItem[]>([]);
-  const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
+  const [foodDatabase, setFoodDatabase] = useState<FoodDatabaseItem[]>([]);
   const [displayedFoods, setDisplayedFoods] = useState<FoodItem[]>([]);
   const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
   const [selectedItems, setSelectedItems] = useState<{
@@ -55,6 +72,12 @@ const InventorySetup = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredFoods, setFilteredFoods] = useState<FoodDatabaseItem[]>([]);
+  const [customItemName, setCustomItemName] = useState("");
+  const [customItemDialogOpen, setCustomItemDialogOpen] = useState(false);
 
   useEffect(() => {
     loadFoodDatabase();
@@ -72,6 +95,19 @@ const InventorySetup = () => {
     }
   }, [allFoods, step, usedIndices]);
 
+  useEffect(() => {
+    if (searchQuery.length >= 2) {
+      const results = foodDatabase
+        .filter((food) => 
+          food.food && food.food.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        .slice(0, 10);
+      setFilteredFoods(results);
+    } else {
+      setFilteredFoods([]);
+    }
+  }, [searchQuery, foodDatabase]);
+
   const loadFoodDatabase = async () => {
     const datasets = [
       "/src/assets/data/FOOD-DATA-GROUP1.csv",
@@ -86,13 +122,13 @@ const InventorySetup = () => {
         datasets.map(async (url) => {
           const response = await fetch(url);
           const csvText = await response.text();
-          return new Promise<any[]>((resolve) => {
+          return new Promise<FoodDatabaseItem[]>((resolve) => {
             Papa.parse(csvText, {
               header: true,
               dynamicTyping: true,
               skipEmptyLines: true,
               complete: (results) => {
-                resolve(results.data);
+                resolve(results.data as FoodDatabaseItem[]);
               },
             });
           });
@@ -114,7 +150,6 @@ const InventorySetup = () => {
 
       if (error) throw error;
 
-      // Match with nutrition data from CSV
       const itemsWithNutrition = (data || []).map((item) => {
         const nutritionData = foodDatabase.find(
           (food) => food.food && food.food.toLowerCase().includes(item.food_name.toLowerCase())
@@ -148,18 +183,22 @@ const InventorySetup = () => {
       .filter((idx) => !usedIndices.has(idx));
 
     if (availableIndices.length < 8) {
-      // Reset if we don't have enough
       setUsedIndices(new Set());
       const shuffled = [...categoryFoods].sort(() => Math.random() - 0.5).slice(0, 8);
       setDisplayedFoods(shuffled);
       return;
     }
 
-    // Shuffle and pick 8
     const shuffled = [...availableIndices].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, 8);
     
     setDisplayedFoods(selected.map((idx) => categoryFoods[idx]));
+  };
+
+  const refreshCommonItems = () => {
+    setUsedIndices(new Set());
+    loadDisplayedFoods();
+    toast.success("Refreshed common items");
   };
 
   const replaceDisplayedFood = (index: number) => {
@@ -174,7 +213,6 @@ const InventorySetup = () => {
       .filter((idx) => !usedIndices.has(idx) && idx !== currentIndex);
 
     if (availableIndices.length === 0) {
-      // Reset and reload if we run out
       setUsedIndices(new Set());
       return;
     }
@@ -189,7 +227,7 @@ const InventorySetup = () => {
     });
   };
 
-  const selectFood = (food: FoodItem, index: number) => {
+  const selectFood = (food: FoodItem, index?: number) => {
     const newItem: SelectedItem = {
       ...food,
       quantity: 1,
@@ -202,7 +240,55 @@ const InventorySetup = () => {
     }));
     
     toast.success(`Added ${food.food}`);
-    replaceDisplayedFood(index);
+    if (index !== undefined) {
+      replaceDisplayedFood(index);
+    }
+  };
+
+  const addFromDatabase = (dbFood: FoodDatabaseItem) => {
+    if (!dbFood.food) return;
+    
+    const newFood: FoodItem = {
+      id: `custom-${Date.now()}`,
+      food: dbFood.food,
+      category: step,
+      calories: dbFood["Caloric Value"] || 0,
+      protein: dbFood.Protein || 0,
+      carbs: dbFood.Carbohydrates || 0,
+      fat: dbFood.Fat || 0,
+      fiber: dbFood["Dietary Fiber"] || 0,
+    };
+    
+    selectFood(newFood);
+    setSearchQuery("");
+    setShowManualAdd(false);
+  };
+
+  const openCustomItemDialog = () => {
+    setCustomItemName(searchQuery);
+    setCustomItemDialogOpen(true);
+    setShowManualAdd(false);
+  };
+
+  const addCustomItem = () => {
+    if (!customItemName.trim()) return;
+    
+    const newFood: FoodItem = {
+      id: `custom-${Date.now()}`,
+      food: customItemName,
+      category: step,
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+    };
+    
+    selectFood(newFood);
+    setCustomItemName("");
+    setCustomItemDialogOpen(false);
+    setSearchQuery("");
+    toast.success(`Added custom item: ${customItemName}`);
   };
 
   const removeItem = (index: number) => {
@@ -255,6 +341,18 @@ const InventorySetup = () => {
     }
   };
 
+  const handleSkip = () => {
+    if (step === "fridge") {
+      setStep("freezer");
+      setUsedIndices(new Set());
+    } else if (step === "freezer") {
+      setStep("pantry");
+      setUsedIndices(new Set());
+    } else {
+      handleComplete();
+    }
+  };
+
   const handleComplete = async () => {
     if (!user) return;
 
@@ -265,7 +363,8 @@ const InventorySetup = () => {
     ];
 
     if (allItems.length === 0) {
-      toast.error("Please add at least one item");
+      toast.info("No items added. You can add items later from the Inventory page.");
+      navigate("/home");
       return;
     }
 
@@ -273,7 +372,6 @@ const InventorySetup = () => {
     try {
       const inventoryItems = allItems.map((item) => ({
         user_id: user.id,
-        food_id: null,
         custom_name: item.food,
         quantity: item.quantity,
         unit: item.unit,
@@ -283,7 +381,6 @@ const InventorySetup = () => {
         carbs_g: item.carbs,
         fat_g: item.fat,
         fiber_g: item.fiber,
-        status: "in-stock",
       }));
 
       const { error } = await supabase
@@ -293,7 +390,7 @@ const InventorySetup = () => {
       if (error) throw error;
 
       toast.success("Inventory saved successfully!");
-      navigate("/");
+      navigate("/home");
     } catch (error) {
       console.error("Error saving inventory:", error);
       toast.error("Failed to save inventory");
@@ -328,7 +425,6 @@ const InventorySetup = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
             {stepTitle[step]}
@@ -336,35 +432,81 @@ const InventorySetup = () => {
           <p className="text-muted-foreground">{stepDescription[step]}</p>
         </div>
 
-        {/* Progress indicator */}
         <div className="flex gap-2 mb-8">
-          <Badge variant={step === "fridge" ? "default" : "outline"}>
-            Fridge
-          </Badge>
-          <Badge variant={step === "freezer" ? "default" : "outline"}>
-            Freezer
-          </Badge>
-          <Badge variant={step === "pantry" ? "default" : "outline"}>
-            Pantry
-          </Badge>
+          <Badge variant={step === "fridge" ? "default" : "outline"}>Fridge</Badge>
+          <Badge variant={step === "freezer" ? "default" : "outline"}>Freezer</Badge>
+          <Badge variant={step === "pantry" ? "default" : "outline"}>Pantry</Badge>
         </div>
 
-        {/* Common Foods Grid */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">
-            Common Items (Click to add - new items appear as you select)
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Add Items Manually</h2>
+          </div>
+          
+          {!showManualAdd ? (
+            <Button variant="outline" onClick={() => setShowManualAdd(true)} className="w-full">
+              <Plus className="w-4 h-4 mr-2" />
+              Search or Add Custom Item
+            </Button>
+          ) : (
+            <Card className="p-4">
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Command className="border rounded-md">
+                      <CommandInput placeholder="Search for food items..." value={searchQuery} onValueChange={setSearchQuery} />
+                      <CommandList>
+                        {searchQuery.length >= 2 && (
+                          <>
+                            <CommandEmpty>
+                              <div className="space-y-2 p-2">
+                                <p className="text-sm text-muted-foreground">No items found in database</p>
+                                <Button variant="outline" size="sm" onClick={openCustomItemDialog} className="w-full">
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  Add "{searchQuery}" as custom item
+                                </Button>
+                              </div>
+                            </CommandEmpty>
+                            <CommandGroup heading="Food Database">
+                              {filteredFoods.map((food, idx) => (
+                                <CommandItem key={idx} onSelect={() => addFromDatabase(food)} className="cursor-pointer">
+                                  <div className="flex justify-between w-full">
+                                    <span>{food.food}</span>
+                                    <span className="text-xs text-muted-foreground">{Math.round(food["Caloric Value"] || 0)} cal</span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => { setShowManualAdd(false); setSearchQuery(""); }}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Type at least 2 characters to search. Items not in database can be added as custom items.
+                </p>
+              </div>
+            </Card>
+          )}
+        </div>
+
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Common Items</h2>
+            <Button variant="outline" size="sm" onClick={refreshCommonItems}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Show More
+            </Button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {displayedFoods.map((food, index) => (
-              <Card
-                key={`${food.id}-${index}`}
-                className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary"
-                onClick={() => selectFood(food, index)}
-              >
+              <Card key={`${food.id}-${index}`} className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary" onClick={() => selectFood(food, index)}>
                 <div className="text-center space-y-2">
-                  <h3 className="font-medium text-sm capitalize line-clamp-2">
-                    {food.food}
-                  </h3>
+                  <h3 className="font-medium text-sm capitalize line-clamp-2">{food.food}</h3>
                   <div className="text-xs text-muted-foreground space-y-1">
                     <div className="font-semibold">{Math.round(food.calories)} cal</div>
                     <div className="text-[10px] text-muted-foreground/70">per 100g</div>
@@ -383,12 +525,9 @@ const InventorySetup = () => {
           </div>
         </div>
 
-        {/* Selected Items */}
         {selectedItems[step].length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">
-              Selected Items ({selectedItems[step].length})
-            </h2>
+            <h2 className="text-xl font-semibold mb-4">Selected Items ({selectedItems[step].length})</h2>
             <div className="space-y-3">
               {selectedItems[step].map((item, index) => (
                 <Card key={index} className="p-4">
@@ -396,41 +535,24 @@ const InventorySetup = () => {
                     <div className="flex-1">
                       <h3 className="font-medium capitalize">{item.food}</h3>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {Math.round(item.calories)} cal | P: {item.protein.toFixed(1)}g | C:{" "}
-                        {item.carbs.toFixed(1)}g | F: {item.fat.toFixed(1)}g
+                        {Math.round(item.calories)} cal | P: {item.protein.toFixed(1)}g | C: {item.carbs.toFixed(1)}g | F: {item.fat.toFixed(1)}g
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => updateQuantity(index, -0.5)}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <span className="w-16 text-center">
-                        {item.quantity} {item.unit}
-                      </span>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => updateQuantity(index, 0.5)}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => openEditDialog(item)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(item)}>
                         <Edit2 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        onClick={() => removeItem(index)}
-                      >
-                        <Minus className="w-4 h-4" />
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="icon" onClick={() => updateQuantity(index, -0.5)}>
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="px-3 text-sm">{item.quantity} {item.unit}</span>
+                        <Button variant="outline" size="icon" onClick={() => updateQuantity(index, 0.5)}>
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(index)}>
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -440,119 +562,88 @@ const InventorySetup = () => {
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (step === "freezer") {
-                setStep("fridge");
-                setUsedIndices(new Set());
-              } else if (step === "pantry") {
-                setStep("freezer");
-                setUsedIndices(new Set());
-              }
-            }}
-            disabled={step === "fridge"}
-          >
-            Back
-          </Button>
-          <Button onClick={handleNext} disabled={loading}>
-            {loading ? (
-              "Saving..."
-            ) : step === "pantry" ? (
-              <>
-                Complete <Check className="w-4 h-4 ml-2" />
-              </>
-            ) : (
-              <>
-                Next <ChevronRight className="w-4 h-4 ml-2" />
-              </>
-            )}
+        <div className="flex gap-3 mt-8">
+          <Button variant="outline" onClick={handleSkip} disabled={loading} className="flex-1">Skip</Button>
+          <Button onClick={handleNext} disabled={loading} className="flex-1">
+            {loading ? "Saving..." : step === "pantry" ? "Complete Setup" : <></>}
+            {!loading && step !== "pantry" && <>Next <ChevronRight className="w-4 h-4 ml-2" /></>}
           </Button>
         </div>
       </div>
 
-      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Nutrition Info - {editingItem?.food}</DialogTitle>
+            <DialogTitle>Edit Nutrition Info</DialogTitle>
           </DialogHeader>
           {editingItem && (
             <div className="space-y-4">
               <div>
-                <Label>Calories</Label>
-                <Input
-                  type="number"
-                  value={editingItem.calories}
-                  onChange={(e) =>
-                    setEditingItem({
-                      ...editingItem,
-                      calories: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
+                <Label>Item Name</Label>
+                <Input value={editingItem.food} onChange={(e) => setEditingItem({ ...editingItem, food: e.target.value })} />
               </div>
-              <div>
-                <Label>Protein (g)</Label>
-                <Input
-                  type="number"
-                  value={editingItem.protein}
-                  onChange={(e) =>
-                    setEditingItem({
-                      ...editingItem,
-                      protein: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Quantity</Label>
+                  <Input type="number" step="0.1" value={editingItem.quantity} onChange={(e) => setEditingItem({ ...editingItem, quantity: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>Unit</Label>
+                  <Input value={editingItem.unit} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })} />
+                </div>
               </div>
-              <div>
-                <Label>Carbs (g)</Label>
-                <Input
-                  type="number"
-                  value={editingItem.carbs}
-                  onChange={(e) =>
-                    setEditingItem({
-                      ...editingItem,
-                      carbs: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Calories</Label>
+                  <Input type="number" value={editingItem.calories} onChange={(e) => setEditingItem({ ...editingItem, calories: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>Protein (g)</Label>
+                  <Input type="number" step="0.1" value={editingItem.protein} onChange={(e) => setEditingItem({ ...editingItem, protein: parseFloat(e.target.value) || 0 })} />
+                </div>
               </div>
-              <div>
-                <Label>Fat (g)</Label>
-                <Input
-                  type="number"
-                  value={editingItem.fat}
-                  onChange={(e) =>
-                    setEditingItem({
-                      ...editingItem,
-                      fat: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-              <div>
-                <Label>Fiber (g)</Label>
-                <Input
-                  type="number"
-                  value={editingItem.fiber}
-                  onChange={(e) =>
-                    setEditingItem({
-                      ...editingItem,
-                      fiber: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Carbs (g)</Label>
+                  <Input type="number" step="0.1" value={editingItem.carbs} onChange={(e) => setEditingItem({ ...editingItem, carbs: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>Fat (g)</Label>
+                  <Input type="number" step="0.1" value={editingItem.fat} onChange={(e) => setEditingItem({ ...editingItem, fat: parseFloat(e.target.value) || 0 })} />
+                </div>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveEdit}>
+              <Check className="w-4 h-4 mr-2" />
+              Save Changes
             </Button>
-            <Button onClick={saveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={customItemDialogOpen} onOpenChange={setCustomItemDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Custom Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Item Name</Label>
+              <Input value={customItemName} onChange={(e) => setCustomItemName(e.target.value)} placeholder="Enter item name" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This item will be added with default nutrition values (0). You can edit them after adding.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomItemDialogOpen(false)}>Cancel</Button>
+            <Button onClick={addCustomItem} disabled={!customItemName.trim()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Item
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
