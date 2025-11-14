@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -13,35 +13,26 @@ interface GroceryItem {
   quantity: string;
   category: string;
   checked: boolean;
+  recipeId?: string;
+  recipeName?: string;
 }
 
 const GroceryList = () => {
   const [newItem, setNewItem] = useState("");
+  const [items, setItems] = useState<GroceryItem[]>([]);
 
-  // Mock grocery list data
-  const [items, setItems] = useState<GroceryItem[]>([
-    {
-      id: "1",
-      name: "Eggs",
-      quantity: "1 dozen",
-      category: "Dairy",
-      checked: false,
-    },
-    {
-      id: "2",
-      name: "Tomatoes",
-      quantity: "500g",
-      category: "Produce",
-      checked: false,
-    },
-    {
-      id: "3",
-      name: "Olive Oil",
-      quantity: "1 bottle",
-      category: "Pantry",
-      checked: true,
-    },
-  ]);
+  // Load from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('groceryList');
+    if (stored) {
+      setItems(JSON.parse(stored));
+    }
+  }, []);
+
+  // Save to localStorage whenever items change
+  useEffect(() => {
+    localStorage.setItem('groceryList', JSON.stringify(items));
+  }, [items]);
 
   const toggleItem = (id: string) => {
     setItems((prev) =>
@@ -131,7 +122,14 @@ const GroceryList = () => {
                       onCheckedChange={() => toggleItem(item.id)}
                     />
                     <div className="flex-1">
-                      <div className="font-medium text-foreground">{item.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-foreground">{item.name}</div>
+                        {item.recipeName && (
+                          <Badge variant="outline" className="text-xs">
+                            {item.recipeName}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-sm text-muted-foreground">
                         {item.quantity}
                       </div>
@@ -166,8 +164,15 @@ const GroceryList = () => {
                       onCheckedChange={() => toggleItem(item.id)}
                     />
                     <div className="flex-1">
-                      <div className="font-medium text-foreground line-through">
-                        {item.name}
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-foreground line-through">
+                          {item.name}
+                        </div>
+                        {item.recipeName && (
+                          <Badge variant="outline" className="text-xs opacity-60">
+                            {item.recipeName}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {item.quantity}

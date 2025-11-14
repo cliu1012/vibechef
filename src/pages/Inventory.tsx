@@ -444,52 +444,40 @@ const Inventory = () => {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="itemName">Item Name</Label>
-              <Popover open={openAutocomplete} onOpenChange={setOpenAutocomplete}>
-                <PopoverTrigger asChild>
-                  <Input
-                    id="itemName"
-                    placeholder="Start typing for suggestions..."
-                    value={customItem}
-                    onChange={(e) => {
-                      setCustomItem(e.target.value);
-                      setOpenAutocomplete(true);
-                    }}
-                    onFocus={() => setOpenAutocomplete(true)}
-                  />
-                </PopoverTrigger>
-                {filteredSuggestions.length > 0 && (
-                  <PopoverContent 
-                    className="w-[400px] p-0 bg-background border border-border z-50" 
-                    align="start"
-                  >
-                    <Command className="bg-background">
-                      <CommandList>
-                        <CommandEmpty>No food items found.</CommandEmpty>
-                        <CommandGroup heading="Suggestions from database">
-                          {filteredSuggestions.map((suggestion) => (
-                            <CommandItem
-                              key={suggestion.food}
-                              value={suggestion.food}
-                              onSelect={() => handleSelectSuggestion(suggestion)}
-                              className="cursor-pointer"
-                            >
-                              <div className="flex flex-col">
-                                <span className="font-medium">{suggestion.food}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {Math.round(suggestion["Caloric Value"])} cal • 
-                                  P: {suggestion.Protein.toFixed(1)}g • 
-                                  C: {suggestion.Carbohydrates.toFixed(1)}g • 
-                                  F: {suggestion.Fat.toFixed(1)}g
-                                </span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
+              <div className="relative">
+                <Input
+                  id="itemName"
+                  placeholder="Start typing for suggestions..."
+                  value={customItem}
+                  onChange={(e) => {
+                    setCustomItem(e.target.value);
+                    setOpenAutocomplete(true);
+                  }}
+                  onFocus={() => setOpenAutocomplete(true)}
+                  onBlur={() => setTimeout(() => setOpenAutocomplete(false), 200)}
+                />
+                {openAutocomplete && filteredSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+                    <div className="p-2 space-y-1">
+                      {filteredSuggestions.map((suggestion) => (
+                        <div
+                          key={suggestion.food}
+                          className="p-2 hover:bg-accent rounded-md cursor-pointer"
+                          onClick={() => handleSelectSuggestion(suggestion)}
+                        >
+                          <div className="font-medium">{suggestion.food}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {Math.round(suggestion["Caloric Value"])} cal • 
+                            P: {suggestion.Protein.toFixed(1)}g • 
+                            C: {suggestion.Carbohydrates.toFixed(1)}g • 
+                            F: {suggestion.Fat.toFixed(1)}g
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </Popover>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Type to search {foodDatabase.length.toLocaleString()} food items
               </p>
