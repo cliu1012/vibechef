@@ -13,7 +13,11 @@ const Onboarding = () => {
   const [preferences, setPreferences] = useState({
     dietary: [] as string[],
     calorieGoal: "",
-    timePreference: "",
+    proteinGoal: "",
+    fiberGoal: "",
+    fatGoal: "",
+    carbsGoal: "",
+    allergies: [] as string[],
   });
 
   const dietaryOptions = [
@@ -27,7 +31,16 @@ const Onboarding = () => {
     "Kosher",
   ];
 
-  const timeOptions = ["10 min", "20 min", "30 min", "45+ min"];
+  const allergyOptions = [
+    "Milk",
+    "Eggs",
+    "Fish",
+    "Shellfish",
+    "Tree Nuts",
+    "Peanuts",
+    "Wheat",
+    "Soy",
+  ];
 
   const toggleDietary = (option: string) => {
     setPreferences((prev) => ({
@@ -35,6 +48,15 @@ const Onboarding = () => {
       dietary: prev.dietary.includes(option)
         ? prev.dietary.filter((d) => d !== option)
         : [...prev.dietary, option],
+    }));
+  };
+
+  const toggleAllergy = (option: string) => {
+    setPreferences((prev) => ({
+      ...prev,
+      allergies: prev.allergies.includes(option)
+        ? prev.allergies.filter((a) => a !== option)
+        : [...prev.allergies, option],
     }));
   };
 
@@ -117,12 +139,12 @@ const Onboarding = () => {
           </div>
         )}
 
-        {/* Step 2: Calorie Goals */}
+        {/* Step 2: Calorie & Macro Goals */}
         {step === 2 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">
-                Set Your Daily Calorie Goal
+                Set Your Nutrition Goals
               </h2>
               <p className="text-muted-foreground">
                 Help us suggest meals that fit your nutrition targets (optional)
@@ -170,6 +192,86 @@ const Onboarding = () => {
                   </Button>
                 ))}
               </div>
+
+              <div className="pt-4">
+                <Label className="text-foreground mb-3 block">
+                  Macro Goals (Optional)
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="protein" className="text-sm text-muted-foreground">
+                      Protein (g)
+                    </Label>
+                    <Input
+                      id="protein"
+                      type="number"
+                      placeholder="e.g., 150"
+                      value={preferences.proteinGoal}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({
+                          ...prev,
+                          proteinGoal: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="carbs" className="text-sm text-muted-foreground">
+                      Carbs (g)
+                    </Label>
+                    <Input
+                      id="carbs"
+                      type="number"
+                      placeholder="e.g., 200"
+                      value={preferences.carbsGoal}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({
+                          ...prev,
+                          carbsGoal: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="fat" className="text-sm text-muted-foreground">
+                      Fat (g)
+                    </Label>
+                    <Input
+                      id="fat"
+                      type="number"
+                      placeholder="e.g., 65"
+                      value={preferences.fatGoal}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({
+                          ...prev,
+                          fatGoal: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="fiber" className="text-sm text-muted-foreground">
+                      Fiber (g)
+                    </Label>
+                    <Input
+                      id="fiber"
+                      type="number"
+                      placeholder="e.g., 30"
+                      value={preferences.fiberGoal}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({
+                          ...prev,
+                          fiberGoal: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-4">
@@ -194,42 +296,43 @@ const Onboarding = () => {
           </div>
         )}
 
-        {/* Step 3: Time Preferences */}
+        {/* Step 3: Allergies */}
         {step === 3 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">
-                How Much Time Do You Have?
+                Any Food Allergies?
               </h2>
               <p className="text-muted-foreground">
-                We'll prioritize recipes that fit your schedule
+                We'll make sure to exclude these from your meal suggestions (optional)
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {timeOptions.map((time) => (
+            <div className="grid grid-cols-2 gap-3">
+              {allergyOptions.map((option) => (
                 <button
-                  key={time}
-                  onClick={() =>
-                    setPreferences((prev) => ({ ...prev, timePreference: time }))
-                  }
-                  className={`p-6 rounded-lg border-2 transition-all duration-200 ${
-                    preferences.timePreference === time
-                      ? "border-primary bg-primary/5 shadow-md"
-                      : "border-border hover:border-primary/50"
+                  key={option}
+                  onClick={() => toggleAllergy(option)}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                    preferences.allergies.includes(option)
+                      ? "border-destructive bg-destructive/5"
+                      : "border-border hover:border-destructive/50"
                   }`}
                 >
-                  <span className="text-lg font-semibold text-foreground">
-                    {time}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-foreground">{option}</span>
+                    {preferences.allergies.includes(option) && (
+                      <Check className="w-5 h-5 text-destructive" />
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
 
             <div className="bg-accent/10 border border-accent/20 rounded-lg p-4">
               <p className="text-sm text-foreground">
-                <strong>You're almost ready!</strong> After this step, we'll show you
-                personalized meal suggestions.
+                <strong>You're all set!</strong> After this step, we'll show you
+                personalized meal suggestions based on your preferences.
               </p>
             </div>
 
