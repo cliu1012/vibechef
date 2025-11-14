@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Plus, Minus, Edit2 } from "lucide-react";
+import { ChevronRight, Plus, Minus, Edit2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -17,662 +17,522 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-interface Item {
-  name: string;
+interface FoodItem {
+  food: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  category: "fridge" | "freezer" | "pantry";
+}
+
+interface SelectedItem extends FoodItem {
   quantity: number;
   unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  fiber?: number;
-  image?: string;
-}
-
-interface FoodDatasetItem {
-  food: string;
-  "Caloric Value": number;
-  Protein: number;
-  Carbohydrates: number;
-  Fat: number;
-  "Dietary Fiber": number;
-}
-
-interface CommonItem {
-  id: string;
-  food_name: string;
-  category: string;
-  display_order: number;
 }
 
 const InventorySetup = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState<"fridge" | "freezer" | "pantry">("fridge");
+  const [allFoods, setAllFoods] = useState<FoodItem[]>([]);
+  const [displayedFoods, setDisplayedFoods] = useState<FoodItem[]>([]);
+  const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
   const [selectedItems, setSelectedItems] = useState<{
-    fridge: Item[];
-    freezer: Item[];
-    pantry: Item[];
+    fridge: SelectedItem[];
+    freezer: SelectedItem[];
+    pantry: SelectedItem[];
   }>({
     fridge: [],
     freezer: [],
     pantry: [],
   });
-  const [customItem, setCustomItem] = useState("");
-  const [customQuantity, setCustomQuantity] = useState("");
-  const [customUnit, setCustomUnit] = useState("g");
-  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [editingItem, setEditingItem] = useState<SelectedItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [foodDatabase, setFoodDatabase] = useState<FoodDatasetItem[]>([]);
-  const [commonItems, setCommonItems] = useState<{
-    fridge: Item[];
-    freezer: Item[];
-    pantry: Item[];
-  }>({
-    fridge: [],
-    freezer: [],
-    pantry: [],
-  });
-  const [openAutocomplete, setOpenAutocomplete] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    loadFoodDatabase();
-    loadCommonItems();
+    loadAllFoodData();
   }, []);
 
-  const loadCommonItems = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("common_items")
-        .select("*")
-        .order("display_order");
-
-      if (error) throw error;
-
-      // Group by category and include image URLs
-      setCommonItems((prev) => {
-        const grouped = { fridge: [], freezer: [], pantry: [] } as any;
-        data?.forEach((item) => {
-          grouped[item.category] = grouped[item.category] || [];
-          grouped[item.category].push({
-            name: item.food_name,
-            quantity: 1,
-            unit: "g",
-            image: item.image_url || "📦", // Use stored image or fallback to emoji
-            id: item.id, // Store ID to update image later
-          });
-        });
-        return grouped;
-      });
-    } catch (error) {
-      console.error("Error loading common items:", error);
+  useEffect(() => {
+    if (allFoods.length > 0) {
+      loadDisplayedFoods();
     }
+  }, [allFoods, step]);
+
+  const categorizeFood = (foodName: string): "fridge" | "freezer" | "pantry" => {
+    const name = foodName.toLowerCase();
+    
+    // Freezer items
+    const freezerKeywords = ["ice cream", "frozen", "popsicle", "sorbet"];
+    if (freezerKeywords.some(keyword => name.includes(keyword))) {
+      return "freezer";
+    }
+    
+    // Fridge items
+    const fridgeKeywords = [
+      "milk", "cheese", "yogurt", "butter", "cream", "egg",
+      "meat", "chicken", "beef", "pork", "fish", "salmon", "tuna",
+      "lettuce", "spinach", "kale", "broccoli", "carrot", "celery",
+      "juice", "fresh", "berries", "strawberry", "blueberry"
+    ];
+    if (fridgeKeywords.some(keyword => name.includes(keyword))) {
+      return "fridge";
+    }
+    
+    // Default to pantry
+    return "pantry";
   };
 
-  // When food database is loaded, enrich common items with nutritional data
-  useEffect(() => {
-    if (foodDatabase.length > 0) {
-      setCommonItems((prev) => {
-        const enriched = { fridge: [], freezer: [], pantry: [] } as any;
-        
-        Object.keys(prev).forEach((category) => {
-          enriched[category] = prev[category as keyof typeof prev].map((item: Item) => {
-            const foodItem = foodDatabase.find(
-              (f) => f.food.toLowerCase().includes(item.name.toLowerCase())
-            );
-            
-            return {
-              ...item,
-              calories: foodItem?.["Caloric Value"],
-              protein: foodItem?.Protein,
-              carbs: foodItem?.Carbohydrates,
-              fat: foodItem?.Fat,
-              fiber: foodItem?.["Dietary Fiber"],
-            };
-          });
-        });
-        
-        return enriched;
-      });
-    }
-  }, [foodDatabase]);
+  const loadAllFoodData = async () => {
+    const datasets = [
+      "/src/assets/data/FOOD-DATA-GROUP1.csv",
+      "/src/assets/data/FOOD-DATA-GROUP2.csv",
+      "/src/assets/data/FOOD-DATA-GROUP3.csv",
+      "/src/assets/data/FOOD-DATA-GROUP4.csv",
+      "/src/assets/data/FOOD-DATA-GROUP5.csv",
+    ];
 
-  const loadFoodDatabase = async () => {
     try {
-      const { data, error } = await supabase
-        .from("food_database")
-        .select("name, calories, protein_g, carbs_g, fat_g, fiber_g");
-
-      if (error) throw error;
-
-      const formattedData = (data || []).map((item) => ({
-        food: item.name,
-        "Caloric Value": item.calories || 0,
-        Protein: item.protein_g || 0,
-        Carbohydrates: item.carbs_g || 0,
-        Fat: item.fat_g || 0,
-        "Dietary Fiber": item.fiber_g || 0,
-      }));
-
-      setFoodDatabase(formattedData);
+      const allData = await Promise.all(
+        datasets.map(async (url) => {
+          const response = await fetch(url);
+          const csvText = await response.text();
+          return new Promise<FoodItem[]>((resolve) => {
+            Papa.parse(csvText, {
+              header: true,
+              dynamicTyping: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                const items = (results.data as any[])
+                  .filter((item) => item.food && item["Caloric Value"])
+                  .map((item) => ({
+                    food: item.food,
+                    calories: parseFloat(item["Caloric Value"]) || 0,
+                    protein: parseFloat(item.Protein) || 0,
+                    carbs: parseFloat(item.Carbohydrates) || 0,
+                    fat: parseFloat(item.Fat) || 0,
+                    fiber: parseFloat(item["Dietary Fiber"]) || 0,
+                    category: categorizeFood(item.food),
+                  }));
+                resolve(items);
+              },
+            });
+          });
+        })
+      );
+      
+      const combined = allData.flat();
+      setAllFoods(combined);
+      setLoadingData(false);
     } catch (error) {
       console.error("Error loading food database:", error);
+      toast.error("Failed to load food data");
+      setLoadingData(false);
     }
   };
 
-  // Filter suggestions based on custom item input
-  const filteredSuggestions = customItem.trim().length > 0
-    ? foodDatabase
-        .filter((item) =>
-          item.food.toLowerCase().includes(customItem.toLowerCase())
-        )
-        .slice(0, 10)
-    : [];
+  const loadDisplayedFoods = () => {
+    const categoryFoods = allFoods.filter((food) => food.category === step);
+    const availableIndices = categoryFoods
+      .map((_, idx) => idx)
+      .filter((idx) => !usedIndices.has(idx));
 
-  const currentItems = commonItems[step];
-  const currentSelected = selectedItems[step];
-
-  // Get available common items (not already added) - show 8 at a time
-  const getAvailableCommonItems = () => {
-    const allItems = currentItems || [];
-    const addedItemNames = currentSelected.map(item => item.name.toLowerCase());
-    const available = allItems.filter(
-      item => !addedItemNames.includes(item.name.toLowerCase())
-    );
-    return available.slice(0, 8);
-  };
-
-  const handleItemToggle = (item: Item) => {
-    const exists = currentSelected.find((i) => i.name === item.name);
-    if (exists) {
-      setSelectedItems({
-        ...selectedItems,
-        [step]: currentSelected.filter((i) => i.name !== item.name),
-      });
-    } else {
-      setSelectedItems({
-        ...selectedItems,
-        [step]: [
-          ...currentSelected,
-          {
-            name: item.name,
-            quantity: 1,
-            unit: item.unit,
-            calories: item.calories,
-            protein: item.protein,
-            carbs: item.carbs,
-            fat: item.fat,
-            fiber: item.fiber,
-            image: item.image,
-          },
-        ],
-      });
+    if (availableIndices.length < 8) {
+      // Reset if we don't have enough
+      setUsedIndices(new Set());
+      const shuffled = categoryFoods.sort(() => Math.random() - 0.5).slice(0, 8);
+      setDisplayedFoods(shuffled);
+      return;
     }
+
+    // Shuffle and pick 8
+    const shuffled = availableIndices.sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 8);
+    
+    setDisplayedFoods(selected.map((idx) => categoryFoods[idx]));
   };
 
-  const handleQuantityChange = (itemName: string, delta: number) => {
-    setSelectedItems({
-      ...selectedItems,
-      [step]: currentSelected.map((item) =>
-        item.name === itemName
-          ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-          : item
-      ),
+  const replaceDisplayedFood = (index: number) => {
+    const categoryFoods = allFoods.filter((food) => food.category === step);
+    const availableIndices = categoryFoods
+      .map((_, idx) => idx)
+      .filter((idx) => !usedIndices.has(idx));
+
+    if (availableIndices.length === 0) {
+      // Reload all if we run out
+      setUsedIndices(new Set());
+      loadDisplayedFoods();
+      return;
+    }
+
+    const randomIndex =
+      availableIndices[Math.floor(Math.random() * availableIndices.length)];
+    
+    setUsedIndices((prev) => new Set([...prev, randomIndex]));
+    
+    setDisplayedFoods((prev) => {
+      const newFoods = [...prev];
+      newFoods[index] = categoryFoods[randomIndex];
+      return newFoods;
     });
   };
 
-  const handleEditNutrition = (item: Item) => {
-    setEditingItem(item);
+  const selectFood = (food: FoodItem, index: number) => {
+    const newItem: SelectedItem = {
+      ...food,
+      quantity: 1,
+      unit: "serving",
+    };
+    
+    setSelectedItems((prev) => ({
+      ...prev,
+      [step]: [...prev[step], newItem],
+    }));
+    
+    toast.success(`Added ${food.food}`);
+    replaceDisplayedFood(index);
+  };
+
+  const removeItem = (index: number) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [step]: prev[step].filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateQuantity = (index: number, delta: number) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [step]: prev[step].map((item, i) =>
+        i === index
+          ? { ...item, quantity: Math.max(0.1, item.quantity + delta) }
+          : item
+      ),
+    }));
+  };
+
+  const openEditDialog = (item: SelectedItem) => {
+    setEditingItem({ ...item });
     setEditDialogOpen(true);
   };
 
-  const handleSaveNutrition = () => {
-    if (editingItem) {
-      setSelectedItems({
-        ...selectedItems,
-        [step]: currentSelected.map((item) =>
-          item.name === editingItem.name ? editingItem : item
-        ),
-      });
-      setEditDialogOpen(false);
-      setEditingItem(null);
+  const saveEdit = () => {
+    if (!editingItem) return;
+
+    setSelectedItems((prev) => ({
+      ...prev,
+      [step]: prev[step].map((item) =>
+        item.food === editingItem.food ? editingItem : item
+      ),
+    }));
+    
+    setEditDialogOpen(false);
+    setEditingItem(null);
+    toast.success("Updated nutrition info");
+  };
+
+  const handleNext = () => {
+    if (step === "fridge") setStep("freezer");
+    else if (step === "freezer") setStep("pantry");
+    else handleComplete();
+  };
+
+  const handleComplete = async () => {
+    if (!user) return;
+
+    const allItems = [
+      ...selectedItems.fridge,
+      ...selectedItems.freezer,
+      ...selectedItems.pantry,
+    ];
+
+    if (allItems.length === 0) {
+      toast.error("Please add at least one item");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const inventoryItems = allItems.map((item) => ({
+        user_id: user.id,
+        food_id: null,
+        custom_name: item.food,
+        quantity: item.quantity,
+        unit: item.unit,
+        location: item.category,
+        calories: item.calories,
+        protein_g: item.protein,
+        carbs_g: item.carbs,
+        fat_g: item.fat,
+        fiber_g: item.fiber,
+        status: "in-stock",
+      }));
+
+      const { error } = await supabase
+        .from("user_inventory")
+        .insert(inventoryItems);
+
+      if (error) throw error;
+
+      toast.success("Inventory saved successfully!");
+      navigate("/");
+    } catch (error) {
+      console.error("Error saving inventory:", error);
+      toast.error("Failed to save inventory");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSelectSuggestion = (suggestion: FoodDatasetItem) => {
-    if (customQuantity) {
-      setSelectedItems({
-        ...selectedItems,
-        [step]: [
-          ...currentSelected,
-          {
-            name: suggestion.food,
-            quantity: parseFloat(customQuantity),
-            unit: customUnit,
-            calories: suggestion["Caloric Value"],
-            protein: suggestion.Protein,
-            carbs: suggestion.Carbohydrates,
-            fat: suggestion.Fat,
-            fiber: suggestion["Dietary Fiber"],
-            image: "📦",
-          },
-        ],
-      });
-      setCustomItem("");
-      setCustomQuantity("");
-      setCustomUnit("g");
-      setOpenAutocomplete(false);
-    } else {
-      toast.error("Please enter a quantity first");
-    }
+  if (loadingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading food database...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const stepTitle = {
+    fridge: "Stock Your Fridge",
+    freezer: "Stock Your Freezer",
+    pantry: "Stock Your Pantry",
   };
 
-  const handleAddCustomItem = () => {
-    if (customItem.trim() && customQuantity) {
-      // Check if there's an exact match in the dataset
-      const exactMatch = foodDatabase.find(
-        item => item.food.toLowerCase() === customItem.toLowerCase()
-      );
-
-      if (exactMatch) {
-        handleSelectSuggestion(exactMatch);
-      } else {
-        // Add without nutritional data
-        setSelectedItems({
-          ...selectedItems,
-          [step]: [
-            ...currentSelected,
-            {
-              name: customItem,
-              quantity: parseFloat(customQuantity),
-              unit: customUnit,
-              image: "📦",
-            },
-          ],
-        });
-        setCustomItem("");
-        setCustomQuantity("");
-        setCustomUnit("g");
-      }
-    }
-  };
-
-  const handleNext = async () => {
-    if (step === "fridge") {
-      setStep("freezer");
-    } else if (step === "freezer") {
-      setStep("pantry");
-    } else {
-      // Final step - save to database
-      if (!user) return;
-      
-      setLoading(true);
-      try {
-        // Combine all items from all locations
-        const allItems = [
-          ...selectedItems.fridge.map(item => ({ ...item, location: 'fridge' })),
-          ...selectedItems.freezer.map(item => ({ ...item, location: 'freezer' })),
-          ...selectedItems.pantry.map(item => ({ ...item, location: 'pantry' })),
-        ];
-
-        // Save to database
-        const inventoryItems = allItems.map((item) => {
-          const foodItem = foodDatabase.find(f => f.food.toLowerCase() === item.name.toLowerCase());
-          
-          return {
-            user_id: user.id,
-            food_id: null, // We're not using food_database table anymore, using CSV directly
-            custom_name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            location: item.location,
-            status: "in-stock",
-            calories: item.calories,
-            protein_g: item.protein,
-            carbs_g: item.carbs,
-            fat_g: item.fat,
-            fiber_g: item.fiber,
-          };
-        });
-
-        const { error } = await supabase.from("user_inventory").insert(inventoryItems);
-
-        if (error) {
-          toast.error("Failed to save inventory");
-          console.error(error);
-        } else {
-          toast.success("Inventory saved successfully!");
-          navigate("/home");
-        }
-      } catch (error) {
-        toast.error("An error occurred");
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const getStepTitle = () => {
-    switch (step) {
-      case "fridge":
-        return "Stock Your Fridge";
-      case "freezer":
-        return "Stock Your Freezer";
-      case "pantry":
-        return "Stock Your Pantry";
-    }
+  const stepDescription = {
+    fridge: "Select items you have in your fridge",
+    freezer: "Select items you have in your freezer",
+    pantry: "Select items you have in your pantry",
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="mb-8 text-center">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header */}
+        <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {getStepTitle()}
+            {stepTitle[step]}
           </h1>
-          <p className="text-muted-foreground">
-            Let's stock your kitchen so I can recommend meals
-          </p>
-          <div className="flex justify-center gap-2 mt-4">
-            <Badge variant={step === "fridge" ? "default" : "outline"}>
-              Fridge
-            </Badge>
-            <Badge variant={step === "freezer" ? "default" : "outline"}>
-              Freezer
-            </Badge>
-            <Badge variant={step === "pantry" ? "default" : "outline"}>
-              Pantry
-            </Badge>
-          </div>
+          <p className="text-muted-foreground">{stepDescription[step]}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {getAvailableCommonItems().map((item) => {
-            const selected = currentSelected.find((i) => i.name === item.name);
-            return (
+        {/* Progress indicator */}
+        <div className="flex gap-2 mb-8">
+          <Badge variant={step === "fridge" ? "default" : "outline"}>
+            Fridge
+          </Badge>
+          <Badge variant={step === "freezer" ? "default" : "outline"}>
+            Freezer
+          </Badge>
+          <Badge variant={step === "pantry" ? "default" : "outline"}>
+            Pantry
+          </Badge>
+        </div>
+
+        {/* Common Foods Grid */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Common Items</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {displayedFoods.map((food, index) => (
               <Card
-                key={item.name}
-                className={`p-4 cursor-pointer transition-all ${
-                  selected
-                    ? "border-primary bg-primary/5"
-                    : "hover:border-muted-foreground/50"
-                }`}
-                onClick={() => handleItemToggle(item)}
+                key={`${food.food}-${index}`}
+                className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary"
+                onClick={() => selectFood(food, index)}
               >
-                <div className="flex items-start gap-2 mb-2">
-                  {item.image?.startsWith('data:image') || item.image?.startsWith('http') ? (
-                    <img 
-                      src={item.image} 
-                      alt={item.name}
-                      className="w-12 h-12 object-cover rounded-lg"
-                    />
-                  ) : (
-                    <span className="text-2xl">{item.image || "📦"}</span>
-                  )}
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">
-                      {item.name}
+                <div className="text-center space-y-2">
+                  <div className="text-4xl mb-2">🥘</div>
+                  <h3 className="font-medium text-sm line-clamp-2">
+                    {food.food}
+                  </h3>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>{food.calories} cal</div>
+                    <div className="flex justify-between">
+                      <span>P: {food.protein.toFixed(1)}g</span>
+                      <span>C: {food.carbs.toFixed(1)}g</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.calories ? `${Math.round(item.calories)} cal • P:${item.protein}g • C:${item.carbs}g` : 'Loading nutrition...'}
+                    <div className="flex justify-between">
+                      <span>F: {food.fat.toFixed(1)}g</span>
+                      <span>Fib: {food.fiber.toFixed(1)}g</span>
                     </div>
                   </div>
-                  {selected && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditNutrition(selected);
-                      }}
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </Button>
-                  )}
                 </div>
-                {selected && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuantityChange(item.name, -1);
-                      }}
-                    >
-                      <Minus className="w-3 h-3" />
-                    </Button>
-                    <span className="text-sm min-w-[60px] text-center">
-                      {selected.quantity} {selected.unit}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuantityChange(item.name, 1);
-                      }}
-                    >
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
               </Card>
-            );
-          })}
+            ))}
+          </div>
         </div>
 
-        <Card className="p-4 mb-6">
-          <h3 className="font-semibold text-foreground mb-3">
-            Add Custom Item
-          </h3>
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Popover open={openAutocomplete && filteredSuggestions.length > 0} onOpenChange={setOpenAutocomplete}>
-                <PopoverTrigger asChild>
-                  <Input
-                    placeholder="Item name (start typing for suggestions)"
-                    value={customItem}
-                    onChange={(e) => {
-                      setCustomItem(e.target.value);
-                      setOpenAutocomplete(true);
-                    }}
-                    onFocus={() => setOpenAutocomplete(true)}
-                    className="flex-1"
-                  />
-                </PopoverTrigger>
-                {filteredSuggestions.length > 0 && (
-                  <PopoverContent className="w-[400px] p-0 bg-background border border-border z-50" align="start">
-                    <Command>
-                      <CommandList>
-                        <CommandEmpty>No food items found.</CommandEmpty>
-                        <CommandGroup heading="Suggestions from database">
-                          {filteredSuggestions.map((suggestion) => (
-                            <CommandItem
-                              key={suggestion.food}
-                              value={suggestion.food}
-                              onSelect={() => {
-                                setCustomItem(suggestion.food);
-                                handleSelectSuggestion(suggestion);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <div className="flex flex-col">
-                                <span className="font-medium">{suggestion.food}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {Math.round(suggestion["Caloric Value"])} cal • 
-                                  P: {suggestion.Protein.toFixed(1)}g • 
-                                  C: {suggestion.Carbohydrates.toFixed(1)}g • 
-                                  F: {suggestion.Fat.toFixed(1)}g
-                                </span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                )}
-              </Popover>
+        {/* Selected Items */}
+        {selectedItems[step].length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">
+              Selected Items ({selectedItems[step].length})
+            </h2>
+            <div className="space-y-3">
+              {selectedItems[step].map((item, index) => (
+                <Card key={index} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-medium">{item.food}</h3>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {item.calories} cal | P: {item.protein.toFixed(1)}g | C:{" "}
+                        {item.carbs.toFixed(1)}g | F: {item.fat.toFixed(1)}g
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => updateQuantity(index, -0.5)}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="w-16 text-center">
+                        {item.quantity} {item.unit}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => updateQuantity(index, 0.5)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => openEditDialog(item)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={() => removeItem(index)}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
-            <Input
-              type="number"
-              placeholder="Quantity"
-              value={customQuantity}
-              onChange={(e) => setCustomQuantity(e.target.value)}
-              className="w-28"
-            />
-            <Select value={customUnit} onValueChange={setCustomUnit}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-background border border-border z-50">
-                <SelectItem value="g">g</SelectItem>
-                <SelectItem value="kg">kg</SelectItem>
-                <SelectItem value="ml">ml</SelectItem>
-                <SelectItem value="l">L</SelectItem>
-                <SelectItem value="oz">oz</SelectItem>
-                <SelectItem value="lb">lb</SelectItem>
-                <SelectItem value="count">count</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={handleAddCustomItem} variant="outline">
-              <Plus className="w-4 h-4" />
-            </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Type to search {foodDatabase.length.toLocaleString()} food items with nutritional data
-          </p>
-        </Card>
+        )}
 
+        {/* Navigation */}
         <div className="flex justify-between">
-          <Button variant="outline" onClick={() => navigate("/home")}>
-            Skip for Now
-          </Button>
           <Button
-            onClick={handleNext}
-            className="bg-gradient-to-r from-primary to-accent"
-            disabled={loading}
+            variant="outline"
+            onClick={() => {
+              if (step === "freezer") setStep("fridge");
+              else if (step === "pantry") setStep("freezer");
+            }}
+            disabled={step === "fridge"}
           >
-            {loading ? "Saving..." : step === "pantry" ? "Finish Setup" : "Next"}
-            <ChevronRight className="w-4 h-4 ml-2" />
+            Back
+          </Button>
+          <Button onClick={handleNext} disabled={loading}>
+            {loading ? (
+              "Saving..."
+            ) : step === "pantry" ? (
+              <>
+                Complete <Check className="w-4 h-4 ml-2" />
+              </>
+            ) : (
+              <>
+                Next <ChevronRight className="w-4 h-4 ml-2" />
+              </>
+            )}
           </Button>
         </div>
       </div>
 
+      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Nutritional Data - {editingItem?.name}</DialogTitle>
+            <DialogTitle>Edit Nutrition Info - {editingItem?.food}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="calories">Calories (per {editingItem?.unit})</Label>
-              <Input
-                id="calories"
-                type="number"
-                value={editingItem?.calories || ""}
-                onChange={(e) =>
-                  setEditingItem(
-                    editingItem
-                      ? { ...editingItem, calories: parseFloat(e.target.value) }
-                      : null
-                  )
-                }
-              />
+          {editingItem && (
+            <div className="space-y-4">
+              <div>
+                <Label>Calories</Label>
+                <Input
+                  type="number"
+                  value={editingItem.calories}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      calories: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Protein (g)</Label>
+                <Input
+                  type="number"
+                  value={editingItem.protein}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      protein: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Carbs (g)</Label>
+                <Input
+                  type="number"
+                  value={editingItem.carbs}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      carbs: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Fat (g)</Label>
+                <Input
+                  type="number"
+                  value={editingItem.fat}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      fat: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Fiber (g)</Label>
+                <Input
+                  type="number"
+                  value={editingItem.fiber}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      fiber: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="protein">Protein (g)</Label>
-              <Input
-                id="protein"
-                type="number"
-                value={editingItem?.protein || ""}
-                onChange={(e) =>
-                  setEditingItem(
-                    editingItem
-                      ? { ...editingItem, protein: parseFloat(e.target.value) }
-                      : null
-                  )
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="carbs">Carbohydrates (g)</Label>
-              <Input
-                id="carbs"
-                type="number"
-                value={editingItem?.carbs || ""}
-                onChange={(e) =>
-                  setEditingItem(
-                    editingItem
-                      ? { ...editingItem, carbs: parseFloat(e.target.value) }
-                      : null
-                  )
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fat">Fat (g)</Label>
-              <Input
-                id="fat"
-                type="number"
-                value={editingItem?.fat || ""}
-                onChange={(e) =>
-                  setEditingItem(
-                    editingItem
-                      ? { ...editingItem, fat: parseFloat(e.target.value) }
-                      : null
-                  )
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fiber">Fiber (g)</Label>
-              <Input
-                id="fiber"
-                type="number"
-                value={editingItem?.fiber || ""}
-                onChange={(e) =>
-                  setEditingItem(
-                    editingItem
-                      ? { ...editingItem, fiber: parseFloat(e.target.value) }
-                      : null
-                  )
-                }
-              />
-            </div>
-          </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveNutrition}>Save Changes</Button>
+            <Button onClick={saveEdit}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
