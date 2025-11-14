@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
 import {
   ChefHat,
   ShoppingCart,
@@ -10,98 +9,14 @@ import {
   AlertCircle,
   TrendingDown,
   Sparkles,
-  Refrigerator,
-  Snowflake,
 } from "lucide-react";
 
 const Home = () => {
   const navigate = useNavigate();
-  const [hasInventory, setHasInventory] = useState(false);
-
-  useEffect(() => {
-    // Check if user has inventory
-    const inventory = localStorage.getItem("inventory");
-    setHasInventory(!!inventory);
-  }, []);
 
   // Mock data - will be replaced with real data later
   const lowStockItems = 3;
   const expiringItems = 2;
-
-  // Show inventory setup flow if no inventory
-  if (!hasInventory) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          {/* Header */}
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              Welcome! 👋
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              Let's stock your kitchen so I can recommend meals.
-            </p>
-          </div>
-
-          {/* Inventory Setup Cards */}
-          <div className="space-y-4 mb-8">
-            <Card className="p-6 border-2 border-primary/50 bg-primary/5">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Refrigerator className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-foreground mb-2">
-                    Stock Your Kitchen
-                  </h3>
-                  <p className="text-muted-foreground mb-4">
-                    Add items from your fridge, freezer, and pantry. This helps us
-                    recommend recipes based on what you already have.
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    <Badge variant="outline" className="border-primary text-primary">
-                      <Refrigerator className="w-3 h-3 mr-1" />
-                      Fridge
-                    </Badge>
-                    <Badge variant="outline" className="border-primary text-primary">
-                      <Snowflake className="w-3 h-3 mr-1" />
-                      Freezer
-                    </Badge>
-                    <Badge variant="outline" className="border-primary text-primary">
-                      <Package className="w-3 h-3 mr-1" />
-                      Pantry
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              className="bg-gradient-to-r from-primary to-accent"
-              onClick={() => navigate("/inventory-setup")}
-            >
-              Start Setup
-              <Sparkles className="w-4 h-4 ml-2" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => {
-                localStorage.setItem("inventory", JSON.stringify({}));
-                setHasInventory(true);
-              }}
-            >
-              Skip for Now
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
