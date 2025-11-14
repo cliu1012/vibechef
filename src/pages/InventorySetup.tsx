@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Plus, Minus, Edit2, Check, RefreshCw, X } from "lucide-react";
+import { ChevronRight, Plus, Minus, Edit2, Check, RefreshCw, X, Info, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -17,6 +17,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface FoodItem {
   id: string;
@@ -42,6 +54,8 @@ interface FoodDatabaseItem {
   Fat?: number;
   "Dietary Fiber"?: number;
 }
+
+const COMMON_UNITS = ["serving", "g", "oz", "cup", "tbsp", "tsp", "piece", "lb", "kg", "ml", "L"];
 
 const InventorySetup = () => {
   const navigate = useNavigate();
@@ -70,6 +84,14 @@ const InventorySetup = () => {
   const [filteredFoods, setFilteredFoods] = useState<FoodDatabaseItem[]>([]);
   const [customItemName, setCustomItemName] = useState("");
   const [customItemDialogOpen, setCustomItemDialogOpen] = useState(false);
+
+  const getPreferredUnit = () => {
+    return localStorage.getItem('preferredUnit') || 'serving';
+  };
+
+  const setPreferredUnit = (unit: string) => {
+    localStorage.setItem('preferredUnit', unit);
+  };
 
   useEffect(() => {
     loadFoodDatabase();
@@ -223,7 +245,7 @@ const InventorySetup = () => {
     const newItem: SelectedItem = {
       ...food,
       quantity: 1,
-      unit: "serving",
+      unit: getPreferredUnit(),
     };
     
     setSelectedItems((prev) => ({
@@ -299,6 +321,31 @@ const InventorySetup = () => {
           : item
       ),
     }));
+  };
+
+  const updateItemQuantity = (index: number, value: string) => {
+    const quantity = parseFloat(value) || 0.1;
+    setSelectedItems((prev) => ({
+      ...prev,
+      [step]: prev[step].map((item, i) =>
+        i === index
+          ? { ...item, quantity: Math.max(0.1, quantity) }
+          : item
+      ),
+    }));
+  };
+
+  const updateItemUnit = (index: number, unit: string) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [step]: prev[step].map((item, i) =>
+        i === index
+          ? { ...item, unit }
+          : item
+      ),
+    }));
+    setPreferredUnit(unit);
+    toast.success(`Default unit updated to ${unit}`);
   };
 
   const openEditDialog = (item: SelectedItem) => {
@@ -552,37 +599,94 @@ const InventorySetup = () => {
 
         {selectedItems[step].length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Selected Items ({selectedItems[step].length})</h2>
+            <div className="flex items-center gap-2 mb-4">
+              <h2 className="text-xl font-semibold">Selected Items ({selectedItems[step].length})</h2>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>Nutrition values shown are per serving. Click quantity to edit, or use +/- buttons. Change unit to set your preference.</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="space-y-3">
-              {selectedItems[step].map((item, index) => (
-                <Card key={index} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium capitalize">{item.food}</h3>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {Math.round(item.calories)} cal | P: {item.protein.toFixed(1)}g | C: {item.carbs.toFixed(1)}g | F: {item.fat.toFixed(1)}g
+              {selectedItems[step].map((item, index) => {
+                const caloriesPerServing = Math.round(item.calories * item.quantity);
+                const proteinPerServing = (item.protein * item.quantity).toFixed(1);
+                const carbsPerServing = (item.carbs * item.quantity).toFixed(1);
+                const fatPerServing = (item.fat * item.quantity).toFixed(1);
+                const fiberPerServing = (item.fiber * item.quantity).toFixed(1);
+                
+                return (
+                  <Card key={index} className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium capitalize">{item.food}</h3>
+                        <div className="mt-2 p-2 bg-primary/5 rounded-md border border-primary/10">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Info className="w-3 h-3 text-primary" />
+                            <span className="text-xs font-semibold text-primary">Per Serving:</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-0.5">
+                            <div className="font-semibold text-foreground">{caloriesPerServing} calories</div>
+                            <div className="flex gap-3">
+                              <span>Protein: {proteinPerServing}g</span>
+                              <span>Carbs: {carbsPerServing}g</span>
+                            </div>
+                            <div className="flex gap-3">
+                              <span>Fat: {fatPerServing}g</span>
+                              <span>Fiber: {fiberPerServing}g</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(item)}>
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit nutrition details</TooltipContent>
+                        </Tooltip>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-1">
+                            <Button variant="outline" size="icon" onClick={() => updateQuantity(index, -0.5)}>
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={item.quantity}
+                              onChange={(e) => updateItemQuantity(index, e.target.value)}
+                              className="w-16 h-8 text-center text-sm font-medium bg-primary/5 border-primary/20"
+                            />
+                            <Button variant="outline" size="icon" onClick={() => updateQuantity(index, 0.5)}>
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <Select value={item.unit} onValueChange={(value) => updateItemUnit(index, value)}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {COMMON_UNITS.map((unit) => (
+                                <SelectItem key={unit} value={unit}>
+                                  {unit}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => removeItem(index)}>
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(item)}>
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <div className="flex items-center gap-1">
-                        <Button variant="outline" size="icon" onClick={() => updateQuantity(index, -0.5)}>
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="px-3 text-sm">{item.quantity} {item.unit}</span>
-                        <Button variant="outline" size="icon" onClick={() => updateQuantity(index, 0.5)}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(index)}>
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}

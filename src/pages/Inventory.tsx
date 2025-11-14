@@ -34,6 +34,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import BackButton from "@/components/BackButton";
 import Papa from "papaparse";
 import {
@@ -46,6 +51,8 @@ import {
   ScanBarcode,
   Trash2,
   Edit,
+  Info,
+  HelpCircle,
 } from "lucide-react";
 
 interface InventoryItem {
@@ -56,6 +63,11 @@ interface InventoryItem {
   location: "fridge" | "freezer" | "pantry";
   status: "in-stock" | "low" | "expiring";
   expiresAt?: string;
+  calories?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
+  fiber_g?: number;
 }
 
 interface FoodDatasetItem {
@@ -66,6 +78,8 @@ interface FoodDatasetItem {
   Fat: number;
   "Dietary Fiber": number;
 }
+
+const COMMON_UNITS = ["serving", "g", "oz", "cup", "tbsp", "tsp", "piece", "lb", "kg", "ml", "L"];
 
 const Inventory = () => {
   const { user } = useAuth();
@@ -79,10 +93,22 @@ const Inventory = () => {
   const [foodDatabase, setFoodDatabase] = useState<FoodDatasetItem[]>([]);
   const [commonItemNames, setCommonItemNames] = useState<string[]>([]);
   const [customItem, setCustomItem] = useState("");
-  const [customQuantity, setCustomQuantity] = useState("");
-  const [customUnit, setCustomUnit] = useState("g");
+  const [customQuantity, setCustomQuantity] = useState("1");
+  const [customUnit, setCustomUnit] = useState("");
   const [selectedLocation, setSelectedLocation] = useState<"fridge" | "freezer" | "pantry">("fridge");
   const [openAutocomplete, setOpenAutocomplete] = useState(false);
+
+  const getPreferredUnit = () => {
+    return localStorage.getItem('preferredUnit') || 'serving';
+  };
+
+  const setPreferredUnit = (unit: string) => {
+    localStorage.setItem('preferredUnit', unit);
+  };
+
+  useEffect(() => {
+    setCustomUnit(getPreferredUnit());
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -188,6 +214,11 @@ const Inventory = () => {
         location: item.location as "fridge" | "freezer" | "pantry",
         status: item.status as "in-stock" | "low" | "expiring",
         expiresAt: item.expires_at || undefined,
+        calories: item.calories || undefined,
+        protein_g: item.protein_g || undefined,
+        carbs_g: item.carbs_g || undefined,
+        fat_g: item.fat_g || undefined,
+        fiber_g: item.fiber_g || undefined,
       }));
       setItems(formattedItems);
     }
@@ -300,11 +331,12 @@ const Inventory = () => {
       console.error(error);
     } else {
       toast.success("Item added successfully!");
+      setPreferredUnit(customUnit);
       await loadInventory();
       setAddDialogOpen(false);
       setCustomItem("");
-      setCustomQuantity("");
-      setCustomUnit("g");
+      setCustomQuantity("1");
+      setCustomUnit(getPreferredUnit());
       setSelectedLocation("fridge");
     }
   };
@@ -379,26 +411,33 @@ const Inventory = () => {
               </Button>
             </Card>
           ) : (
-            filteredItems.map((item) => (
+            filteredItems.map((item) => {
+              const caloriesPerServing = item.calories ? Math.round(item.calories * item.quantity) : null;
+              const proteinPerServing = item.protein_g ? (item.protein_g * item.quantity).toFixed(1) : null;
+              const carbsPerServing = item.carbs_g ? (item.carbs_g * item.quantity).toFixed(1) : null;
+              const fatPerServing = item.fat_g ? (item.fat_g * item.quantity).toFixed(1) : null;
+              const fiberPerServing = item.fiber_g ? (item.fiber_g * item.quantity).toFixed(1) : null;
+              
+              return (
               <Card
                 key={item.id}
                 className="p-4 hover:shadow-md transition-all duration-200"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                       {getLocationIcon(item.location)}
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">{item.name}</h3>
+                        <h3 className="font-semibold text-foreground truncate">{item.name}</h3>
                         <Badge variant="outline" className={getStatusColor(item.status)}>
                           {item.status === "low" && "Low Stock"}
                           {item.status === "expiring" && "Expiring Soon"}
                           {item.status === "in-stock" && "In Stock"}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                         <span>
                           {item.quantity} {item.unit}
                         </span>
@@ -410,27 +449,60 @@ const Inventory = () => {
                           </span>
                         )}
                       </div>
+                      {caloriesPerServing && (
+                        <div className="mt-2 p-2 bg-primary/5 rounded-md border border-primary/10 max-w-sm">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Info className="w-3 h-3 text-primary" />
+                            <span className="text-xs font-semibold text-primary">Per Serving:</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-0.5">
+                            <div className="font-semibold text-foreground">{caloriesPerServing} calories</div>
+                            {proteinPerServing && carbsPerServing && (
+                              <div className="flex gap-3">
+                                <span>Protein: {proteinPerServing}g</span>
+                                <span>Carbs: {carbsPerServing}g</span>
+                              </div>
+                            )}
+                            {fatPerServing && fiberPerServing && (
+                              <div className="flex gap-3">
+                                <span>Fat: {fatPerServing}g</span>
+                                <span>Fiber: {fiberPerServing}g</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(item)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(item.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(item)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit item</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(item.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete item</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </Card>
-            ))
+            )})
           )}
         </div>
       </div>
@@ -484,13 +556,25 @@ const Inventory = () => {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="grid gap-2">
-                <Label htmlFor="quantity">Quantity</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="w-3 h-3 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>Start with 1 and choose your preferred unit. Your unit preference will be remembered for next time!</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <Input
                   id="quantity"
                   type="number"
-                  placeholder="100"
+                  step="0.1"
+                  placeholder="1"
                   value={customQuantity}
                   onChange={(e) => setCustomQuantity(e.target.value)}
+                  className="bg-primary/5 border-primary/20 font-medium"
                 />
               </div>
               <div className="grid gap-2">
@@ -500,13 +584,11 @@ const Inventory = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-background border border-border z-50">
-                    <SelectItem value="g">g</SelectItem>
-                    <SelectItem value="kg">kg</SelectItem>
-                    <SelectItem value="ml">ml</SelectItem>
-                    <SelectItem value="l">L</SelectItem>
-                    <SelectItem value="oz">oz</SelectItem>
-                    <SelectItem value="lb">lb</SelectItem>
-                    <SelectItem value="count">count</SelectItem>
+                    {COMMON_UNITS.map((unit) => (
+                      <SelectItem key={unit} value={unit}>
+                        {unit}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
