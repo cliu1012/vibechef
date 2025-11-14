@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ const Onboarding = () => {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [customAllergy, setCustomAllergy] = useState("");
   const [preferences, setPreferences] = useState({
     dietary: [] as string[],
     calorieGoal: "",
@@ -62,6 +63,23 @@ const Onboarding = () => {
       allergies: prev.allergies.includes(option)
         ? prev.allergies.filter((a) => a !== option)
         : [...prev.allergies, option],
+    }));
+  };
+
+  const addCustomAllergy = () => {
+    if (customAllergy.trim() && !preferences.allergies.includes(customAllergy.trim())) {
+      setPreferences((prev) => ({
+        ...prev,
+        allergies: [...prev.allergies, customAllergy.trim()],
+      }));
+      setCustomAllergy("");
+    }
+  };
+
+  const removeAllergy = (allergy: string) => {
+    setPreferences((prev) => ({
+      ...prev,
+      allergies: prev.allergies.filter((a) => a !== allergy),
     }));
   };
 
@@ -356,6 +374,55 @@ const Onboarding = () => {
                   </div>
                 </button>
               ))}
+            </div>
+
+            {/* Custom Allergy Input */}
+            <div className="space-y-3">
+              <Label className="text-foreground">Add Custom Allergies</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g., Sesame, Mustard"
+                  value={customAllergy}
+                  onChange={(e) => setCustomAllergy(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCustomAllergy();
+                    }
+                  }}
+                />
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  size="icon"
+                  onClick={addCustomAllergy}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Display custom allergies */}
+              {preferences.allergies.filter(a => !allergyOptions.includes(a)).length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {preferences.allergies
+                    .filter(a => !allergyOptions.includes(a))
+                    .map((allergy) => (
+                      <Badge 
+                        key={allergy} 
+                        variant="destructive"
+                        className="px-3 py-1 flex items-center gap-1"
+                      >
+                        {allergy}
+                        <button
+                          onClick={() => removeAllergy(allergy)}
+                          className="ml-1 hover:text-destructive-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-accent/10 border border-accent/20 rounded-lg p-4">

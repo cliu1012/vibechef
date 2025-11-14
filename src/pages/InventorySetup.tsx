@@ -30,6 +30,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Item {
   name: string;
@@ -74,6 +81,7 @@ const InventorySetup = () => {
   });
   const [customItem, setCustomItem] = useState("");
   const [customQuantity, setCustomQuantity] = useState("");
+  const [customUnit, setCustomUnit] = useState("g");
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -272,7 +280,7 @@ const InventorySetup = () => {
           {
             name: suggestion.food,
             quantity: parseFloat(customQuantity),
-            unit: "g",
+            unit: customUnit,
             calories: suggestion["Caloric Value"],
             protein: suggestion.Protein,
             carbs: suggestion.Carbohydrates,
@@ -284,6 +292,7 @@ const InventorySetup = () => {
       });
       setCustomItem("");
       setCustomQuantity("");
+      setCustomUnit("g");
       setOpenAutocomplete(false);
     } else {
       toast.error("Please enter a quantity first");
@@ -308,13 +317,14 @@ const InventorySetup = () => {
             {
               name: customItem,
               quantity: parseFloat(customQuantity),
-              unit: "unit",
+              unit: customUnit,
               image: "📦",
             },
           ],
         });
         setCustomItem("");
         setCustomQuantity("");
+        setCustomUnit("g");
       }
     }
   };
@@ -500,7 +510,7 @@ const InventorySetup = () => {
                   />
                 </PopoverTrigger>
                 {filteredSuggestions.length > 0 && (
-                  <PopoverContent className="w-[400px] p-0" align="start">
+                  <PopoverContent className="w-[400px] p-0 bg-background border border-border z-50" align="start">
                     <Command>
                       <CommandList>
                         <CommandEmpty>No food items found.</CommandEmpty>
@@ -535,11 +545,25 @@ const InventorySetup = () => {
             </div>
             <Input
               type="number"
-              placeholder="Qty (g)"
+              placeholder="Quantity"
               value={customQuantity}
               onChange={(e) => setCustomQuantity(e.target.value)}
-              className="w-24"
+              className="w-28"
             />
+            <Select value={customUnit} onValueChange={setCustomUnit}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background border border-border z-50">
+                <SelectItem value="g">g</SelectItem>
+                <SelectItem value="kg">kg</SelectItem>
+                <SelectItem value="ml">ml</SelectItem>
+                <SelectItem value="l">L</SelectItem>
+                <SelectItem value="oz">oz</SelectItem>
+                <SelectItem value="lb">lb</SelectItem>
+                <SelectItem value="count">count</SelectItem>
+              </SelectContent>
+            </Select>
             <Button onClick={handleAddCustomItem} variant="outline">
               <Plus className="w-4 h-4" />
             </Button>
