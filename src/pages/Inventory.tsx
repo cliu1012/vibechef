@@ -77,6 +77,7 @@ const Inventory = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [foodDatabase, setFoodDatabase] = useState<FoodDatasetItem[]>([]);
+  const [commonItemNames, setCommonItemNames] = useState<string[]>([]);
   const [customItem, setCustomItem] = useState("");
   const [customQuantity, setCustomQuantity] = useState("");
   const [selectedLocation, setSelectedLocation] = useState<"fridge" | "freezer" | "pantry">("fridge");
@@ -87,7 +88,23 @@ const Inventory = () => {
       loadInventory();
     }
     loadFoodDatabase();
+    loadCommonItems();
   }, [user]);
+
+  const loadCommonItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("common_items")
+        .select("food_name")
+        .order("display_order");
+
+      if (error) throw error;
+      
+      setCommonItemNames(data?.map(item => item.food_name.toLowerCase()) || []);
+    } catch (error) {
+      console.error("Error loading common items:", error);
+    }
+  };
 
   const loadFoodDatabase = async () => {
     const datasets = [
@@ -137,6 +154,14 @@ const Inventory = () => {
         .filter((item) =>
           item.food.toLowerCase().includes(customItem.toLowerCase())
         )
+        .sort((a, b) => {
+          // Prioritize common items
+          const aIsCommon = commonItemNames.includes(a.food.toLowerCase());
+          const bIsCommon = commonItemNames.includes(b.food.toLowerCase());
+          if (aIsCommon && !bIsCommon) return -1;
+          if (!aIsCommon && bIsCommon) return 1;
+          return 0;
+        })
         .slice(0, 10)
     : [];
 

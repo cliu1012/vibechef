@@ -52,234 +52,12 @@ interface FoodDatasetItem {
   "Dietary Fiber": number;
 }
 
-const commonItems = {
-  fridge: [
-    {
-      name: "Milk",
-      unit: "L",
-      calories: 42,
-      protein: 3.4,
-      carbs: 5,
-      fat: 1,
-      fiber: 0,
-      image: "🥛",
-    },
-    {
-      name: "Eggs",
-      unit: "count",
-      calories: 155,
-      protein: 13,
-      carbs: 1.1,
-      fat: 11,
-      fiber: 0,
-      image: "🥚",
-    },
-    {
-      name: "Spinach",
-      unit: "g",
-      calories: 23,
-      protein: 2.9,
-      carbs: 3.6,
-      fat: 0.4,
-      fiber: 2.2,
-      image: "🥬",
-    },
-    {
-      name: "Yogurt",
-      unit: "g",
-      calories: 59,
-      protein: 10,
-      carbs: 3.6,
-      fat: 0.4,
-      fiber: 0,
-      image: "🥛",
-    },
-    {
-      name: "Chicken Thigh",
-      unit: "g",
-      calories: 209,
-      protein: 26,
-      carbs: 0,
-      fat: 11,
-      fiber: 0,
-      image: "🍗",
-    },
-    {
-      name: "Cheese",
-      unit: "g",
-      calories: 402,
-      protein: 25,
-      carbs: 1.3,
-      fat: 33,
-      fiber: 0,
-      image: "🧀",
-    },
-    {
-      name: "Tomatoes",
-      unit: "count",
-      calories: 18,
-      protein: 0.9,
-      carbs: 3.9,
-      fat: 0.2,
-      fiber: 1.2,
-      image: "🍅",
-    },
-    {
-      name: "Butter",
-      unit: "g",
-      calories: 717,
-      protein: 0.9,
-      carbs: 0.1,
-      fat: 81,
-      fiber: 0,
-      image: "🧈",
-    },
-  ],
-  freezer: [
-    {
-      name: "Frozen Peas",
-      unit: "g",
-      calories: 81,
-      protein: 5.4,
-      carbs: 14,
-      fat: 0.4,
-      fiber: 5.7,
-      image: "🫛",
-    },
-    {
-      name: "Frozen Berries",
-      unit: "g",
-      calories: 57,
-      protein: 0.7,
-      carbs: 14,
-      fat: 0.3,
-      fiber: 2.4,
-      image: "🫐",
-    },
-    {
-      name: "Ice Cream",
-      unit: "L",
-      calories: 207,
-      protein: 3.5,
-      carbs: 24,
-      fat: 11,
-      fiber: 0.7,
-      image: "🍨",
-    },
-    {
-      name: "Frozen Pizza",
-      unit: "count",
-      calories: 266,
-      protein: 11,
-      carbs: 33,
-      fat: 10,
-      fiber: 2.3,
-      image: "🍕",
-    },
-    {
-      name: "Frozen Fish",
-      unit: "g",
-      calories: 206,
-      protein: 22,
-      carbs: 0,
-      fat: 12,
-      fiber: 0,
-      image: "🐟",
-    },
-    {
-      name: "Frozen Broccoli",
-      unit: "g",
-      calories: 35,
-      protein: 2.4,
-      carbs: 7,
-      fat: 0.4,
-      fiber: 3.3,
-      image: "🥦",
-    },
-  ],
-  pantry: [
-    {
-      name: "Rice",
-      unit: "kg",
-      calories: 130,
-      protein: 2.7,
-      carbs: 28,
-      fat: 0.3,
-      fiber: 0.4,
-      image: "🍚",
-    },
-    {
-      name: "Pasta",
-      unit: "g",
-      calories: 131,
-      protein: 5,
-      carbs: 25,
-      fat: 1.1,
-      fiber: 1.8,
-      image: "🍝",
-    },
-    {
-      name: "Olive Oil",
-      unit: "mL",
-      calories: 884,
-      protein: 0,
-      carbs: 0,
-      fat: 100,
-      fiber: 0,
-      image: "🫒",
-    },
-    {
-      name: "Flour",
-      unit: "kg",
-      calories: 364,
-      protein: 10,
-      carbs: 76,
-      fat: 1,
-      fiber: 2.7,
-      image: "🌾",
-    },
-    {
-      name: "Sugar",
-      unit: "g",
-      calories: 387,
-      protein: 0,
-      carbs: 100,
-      fat: 0,
-      fiber: 0,
-      image: "🧂",
-    },
-    {
-      name: "Salt",
-      unit: "g",
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      fiber: 0,
-      image: "🧂",
-    },
-    {
-      name: "Canned Beans",
-      unit: "can",
-      calories: 127,
-      protein: 7.6,
-      carbs: 23,
-      fat: 0.5,
-      fiber: 6.4,
-      image: "🫘",
-    },
-    {
-      name: "Oats",
-      unit: "g",
-      calories: 389,
-      protein: 17,
-      carbs: 66,
-      fat: 7,
-      fiber: 11,
-      image: "🌾",
-    },
-  ],
-};
+interface CommonItem {
+  id: string;
+  food_name: string;
+  category: string;
+  display_order: number;
+}
 
 const InventorySetup = () => {
   const navigate = useNavigate();
@@ -300,11 +78,78 @@ const InventorySetup = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [foodDatabase, setFoodDatabase] = useState<FoodDatasetItem[]>([]);
+  const [commonItems, setCommonItems] = useState<{
+    fridge: Item[];
+    freezer: Item[];
+    pantry: Item[];
+  }>({
+    fridge: [],
+    freezer: [],
+    pantry: [],
+  });
   const [openAutocomplete, setOpenAutocomplete] = useState(false);
 
   useEffect(() => {
     loadFoodDatabase();
+    loadCommonItems();
   }, []);
+
+  const loadCommonItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("common_items")
+        .select("*")
+        .order("display_order");
+
+      if (error) throw error;
+
+      // Wait for food database to be loaded
+      // We'll match common items with food database after both are loaded
+      setCommonItems((prev) => {
+        const grouped = { fridge: [], freezer: [], pantry: [] } as any;
+        data?.forEach((item) => {
+          grouped[item.category] = grouped[item.category] || [];
+          grouped[item.category].push({
+            name: item.food_name,
+            quantity: 1,
+            unit: "g",
+            image: "📦",
+          });
+        });
+        return grouped;
+      });
+    } catch (error) {
+      console.error("Error loading common items:", error);
+    }
+  };
+
+  // When food database is loaded, enrich common items with nutritional data
+  useEffect(() => {
+    if (foodDatabase.length > 0) {
+      setCommonItems((prev) => {
+        const enriched = { fridge: [], freezer: [], pantry: [] } as any;
+        
+        Object.keys(prev).forEach((category) => {
+          enriched[category] = prev[category as keyof typeof prev].map((item: Item) => {
+            const foodItem = foodDatabase.find(
+              (f) => f.food.toLowerCase().includes(item.name.toLowerCase())
+            );
+            
+            return {
+              ...item,
+              calories: foodItem?.["Caloric Value"],
+              protein: foodItem?.Protein,
+              carbs: foodItem?.Carbohydrates,
+              fat: foodItem?.Fat,
+              fiber: foodItem?.["Dietary Fiber"],
+            };
+          });
+        });
+        
+        return enriched;
+      });
+    }
+  }, [foodDatabase]);
 
   const loadFoodDatabase = async () => {
     const datasets = [
@@ -361,7 +206,7 @@ const InventorySetup = () => {
   const currentItems = commonItems[step];
   const currentSelected = selectedItems[step];
 
-  const handleItemToggle = (item: typeof commonItems.fridge[0]) => {
+  const handleItemToggle = (item: Item) => {
     const exists = currentSelected.find((i) => i.name === item.name);
     if (exists) {
       setSelectedItems({
