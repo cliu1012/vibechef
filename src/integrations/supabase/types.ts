@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      common_items: {
+        Row: {
+          category: string
+          created_at: string | null
+          display_order: number
+          food_name: string
+          id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          display_order?: number
+          food_name: string
+          id?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          display_order?: number
+          food_name?: string
+          id?: string
+        }
+        Relationships: []
+      }
       food_database: {
         Row: {
           calories: number
