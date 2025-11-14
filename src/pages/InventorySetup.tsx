@@ -356,6 +356,7 @@ const InventorySetup = () => {
 
     if (allItems.length === 0) {
       toast.info("No items added. You can add items later from the Inventory page.");
+      sessionStorage.setItem('inventory-setup-completed', 'true');
       navigate("/home");
       return;
     }
@@ -382,6 +383,7 @@ const InventorySetup = () => {
       if (error) throw error;
 
       toast.success("Inventory saved successfully!");
+      sessionStorage.setItem('inventory-setup-completed', 'true');
       navigate("/home");
     } catch (error) {
       console.error("Error saving inventory:", error);

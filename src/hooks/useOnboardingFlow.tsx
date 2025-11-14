@@ -23,6 +23,14 @@ export const useOnboardingFlow = () => {
         return;
       }
 
+      // Check if user just completed inventory setup
+      const justCompleted = sessionStorage.getItem('inventory-setup-completed');
+      if (justCompleted === 'true') {
+        sessionStorage.removeItem('inventory-setup-completed');
+        setChecking(false);
+        return;
+      }
+
       try {
         // Check if user has completed onboarding
         const { data: profile, error: profileError } = await supabase
