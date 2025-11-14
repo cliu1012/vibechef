@@ -7,6 +7,7 @@ import Welcome from "./pages/Welcome";
 import Onboarding from "./pages/Onboarding";
 import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
+import InventorySetup from "./pages/InventorySetup";
 import Recipes from "./pages/Recipes";
 import GroceryList from "./pages/GroceryList";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/home" element={<Home />} />
           <Route path="/inventory" element={<Inventory />} />
+          <Route path="/inventory-setup" element={<InventorySetup />} />
           <Route path="/recipes" element={<Recipes />} />
           <Route path="/grocery-list" element={<GroceryList />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
