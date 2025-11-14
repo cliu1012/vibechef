@@ -4,6 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "@/components/BackButton";
 import {
   Plus,
@@ -13,6 +16,8 @@ import {
   Snowflake,
   AlertCircle,
   ScanBarcode,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 interface InventoryItem {
@@ -21,16 +26,23 @@ interface InventoryItem {
   quantity: number;
   unit: string;
   location: "fridge" | "freezer" | "pantry";
-  status: "in-stock" | "low" | "expiring";
+  status: "in-stock" | "low" | "out";
   expiresAt?: string;
+  image?: string;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
 }
 
 const Inventory = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Mock inventory data
-  const [items] = useState<InventoryItem[]>([
+  const [items, setItems] = useState<InventoryItem[]>([
     {
       id: "1",
       name: "Chicken Breast",
@@ -70,10 +82,28 @@ const Inventory = () => {
       quantity: 3,
       unit: "count",
       location: "fridge",
-      status: "expiring",
+      status: "in-stock",
       expiresAt: "2025-11-16",
+      image: "🍅",
     },
   ]);
+
+  const handleEdit = (item: InventoryItem) => {
+    setEditingItem({ ...item });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (editingItem) {
+      setItems(items.map(item => item.id === editingItem.id ? editingItem : item));
+      setIsDialogOpen(false);
+      setEditingItem(null);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    setItems(items.filter(item => item.id !== id));
+  };
 
   const getLocationIcon = (location: string) => {
     switch (location) {
@@ -90,10 +120,21 @@ const Inventory = () => {
     switch (status) {
       case "low":
         return "bg-warning/10 text-warning border-warning/20";
-      case "expiring":
+      case "out":
         return "bg-destructive/10 text-destructive border-destructive/20";
       default:
         return "bg-success/10 text-success border-success/20";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "low":
+        return "Low Stock";
+      case "out":
+        return "Out of Stock";
+      default:
+        return "In Stock";
     }
   };
 
@@ -169,16 +210,14 @@ const Inventory = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
-                      {getLocationIcon(item.location)}
+                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center text-2xl">
+                      {item.image || getLocationIcon(item.location)}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-foreground">{item.name}</h3>
                         <Badge variant="outline" className={getStatusColor(item.status)}>
-                          {item.status === "low" && "Low Stock"}
-                          {item.status === "expiring" && "Expiring Soon"}
-                          {item.status === "in-stock" && "In Stock"}
+                          {getStatusLabel(item.status)}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -195,14 +234,133 @@ const Inventory = () => {
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    Edit
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Item</DialogTitle>
+            </DialogHeader>
+            {editingItem && (
+              <div className="space-y-4">
+                <div>
+                  <Label>Name</Label>
+                  <Input
+                    value={editingItem.name}
+                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      value={editingItem.quantity}
+                      onChange={(e) => setEditingItem({ ...editingItem, quantity: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Unit</Label>
+                    <Input
+                      value={editingItem.unit}
+                      onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Location</Label>
+                  <Select
+                    value={editingItem.location}
+                    onValueChange={(value: any) => setEditingItem({ ...editingItem, location: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fridge">Fridge</SelectItem>
+                      <SelectItem value="freezer">Freezer</SelectItem>
+                      <SelectItem value="pantry">Pantry</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select
+                    value={editingItem.status}
+                    onValueChange={(value: any) => setEditingItem({ ...editingItem, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in-stock">In Stock</SelectItem>
+                      <SelectItem value="low">Low Stock</SelectItem>
+                      <SelectItem value="out">Out of Stock</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Expiry Date (Optional)</Label>
+                  <Input
+                    type="date"
+                    value={editingItem.expiresAt || ''}
+                    onChange={(e) => setEditingItem({ ...editingItem, expiresAt: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Protein (g)</Label>
+                    <Input
+                      type="number"
+                      value={editingItem.protein || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, protein: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Carbs (g)</Label>
+                    <Input
+                      type="number"
+                      value={editingItem.carbs || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, carbs: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Fat (g)</Label>
+                    <Input
+                      type="number"
+                      value={editingItem.fat || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, fat: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Fiber (g)</Label>
+                    <Input
+                      type="number"
+                      value={editingItem.fiber || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, fiber: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleSave} className="w-full bg-gradient-to-r from-primary to-accent">
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
