@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -28,52 +28,25 @@ interface InventoryItem {
 const Inventory = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [items, setItems] = useState<InventoryItem[]>([]);
 
-  // Mock inventory data
-  const [items] = useState<InventoryItem[]>([
-    {
-      id: "1",
-      name: "Chicken Breast",
-      quantity: 500,
-      unit: "g",
-      location: "fridge",
-      status: "in-stock",
-      expiresAt: "2025-11-18",
-    },
-    {
-      id: "2",
-      name: "Eggs",
-      quantity: 4,
-      unit: "count",
-      location: "fridge",
-      status: "low",
-    },
-    {
-      id: "3",
-      name: "Frozen Peas",
-      quantity: 300,
-      unit: "g",
-      location: "freezer",
-      status: "in-stock",
-    },
-    {
-      id: "4",
-      name: "Rice",
-      quantity: 1,
-      unit: "kg",
-      location: "pantry",
-      status: "in-stock",
-    },
-    {
-      id: "5",
-      name: "Tomatoes",
-      quantity: 3,
-      unit: "count",
-      location: "fridge",
-      status: "expiring",
-      expiresAt: "2025-11-16",
-    },
-  ]);
+  useEffect(() => {
+    // Load inventory from localStorage
+    const savedInventory = localStorage.getItem("inventory");
+    if (savedInventory) {
+      const parsed = JSON.parse(savedInventory);
+      // Transform to InventoryItem format
+      const transformedItems = parsed.map((item: any, index: number) => ({
+        id: `${index}`,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        location: item.location,
+        status: "in-stock" as const,
+      }));
+      setItems(transformedItems);
+    }
+  }, []);
 
   const getLocationIcon = (location: string) => {
     switch (location) {
