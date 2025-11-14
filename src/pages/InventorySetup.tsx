@@ -94,11 +94,7 @@ const InventorySetup = () => {
   };
 
   useEffect(() => {
-    // Only load food database when component is actually being used
-    const timer = setTimeout(() => {
-      loadFoodDatabase();
-    }, 100);
-    return () => clearTimeout(timer);
+    loadFoodDatabase();
   }, []);
 
   useEffect(() => {
@@ -127,6 +123,17 @@ const InventorySetup = () => {
   }, [searchQuery, foodDatabase]);
 
   const loadFoodDatabase = async () => {
+    // Check cache first
+    const cachedData = localStorage.getItem('foodDatabase');
+    const cacheTimestamp = localStorage.getItem('foodDatabaseTimestamp');
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    // Use cache if less than 1 day old
+    if (cachedData && cacheTimestamp && (Date.now() - parseInt(cacheTimestamp)) < oneDayMs) {
+      setFoodDatabase(JSON.parse(cachedData));
+      return;
+    }
+
     const datasets = [
       "/src/assets/data/FOOD-DATA-GROUP1.csv",
       "/src/assets/data/FOOD-DATA-GROUP2.csv",
@@ -153,7 +160,12 @@ const InventorySetup = () => {
         })
       );
       
-      setFoodDatabase(allData.flat());
+      const flatData = allData.flat();
+      setFoodDatabase(flatData);
+      
+      // Cache the data
+      localStorage.setItem('foodDatabase', JSON.stringify(flatData));
+      localStorage.setItem('foodDatabaseTimestamp', Date.now().toString());
     } catch (error) {
       console.error("Error loading food database:", error);
     }
@@ -449,7 +461,7 @@ const InventorySetup = () => {
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading food database...</p>
+          <p className="text-muted-foreground">Loading items...</p>
         </div>
       </div>
     );
