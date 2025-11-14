@@ -101,7 +101,7 @@ const Auth = () => {
               <ChefHat className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Welcome to Meal Planner</CardTitle>
+          <CardTitle className="text-2xl">Welcome to VibeChef</CardTitle>
           <CardDescription>Sign in or create an account to get started</CardDescription>
         </CardHeader>
         <CardContent>
