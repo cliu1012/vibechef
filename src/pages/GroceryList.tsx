@@ -240,73 +240,12 @@ const GroceryList = () => {
     }
   };
 
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error adding to inventory:", error);
-      throw error;
-    }
-  };
-
-  const toggleItem = async (id: string) => {
-    const item = items.find((i) => i.id === id);
-    if (!item) return;
-
-    // If checking the item, add to inventory
-    if (!item.checked) {
-      try {
-        await addToInventory(item);
-        toast.success(`${item.name} added to inventory!`);
-      } catch (error) {
-        toast.error("Failed to add to inventory");
-        return;
-      }
-    }
-
-    setItems((prev) =>
-      prev.map((i) =>
-        i.id === id ? { ...i, checked: !i.checked } : i
-      )
-    );
-  };
-
-  const purchaseAllGroceries = async () => {
-    if (!user) {
-      toast.error("Please log in to add items to inventory");
-      return;
-    }
-
-    if (uncheckedItems.length === 0) {
-      toast.info("No items to purchase!");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Add all unchecked items to inventory
-      for (const item of uncheckedItems) {
-        await addToInventory(item);
-      }
-
-      // Check all items
-      setItems((prev) =>
-        prev.map((item) => ({ ...item, checked: true }))
-      );
-
-      toast.success(`Added ${uncheckedItems.length} items to inventory!`);
-    } catch (error) {
-      console.error("Error purchasing groceries:", error);
-      toast.error("Failed to add some items to inventory");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const uncheckedItems = items.filter((item) => !item.checked);
   const checkedItems = items.filter((item) => item.checked);
+
+  // Separate items by source
+  const manualItems = items.filter((item) => item.source === "manual" && !item.checked);
+  const recipeItems = items.filter((item) => item.source === "recipe" && !item.checked);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
@@ -323,14 +262,14 @@ const GroceryList = () => {
                 {uncheckedItems.length} items to buy
               </p>
             </div>
-            {uncheckedItems.length > 0 && (
+            {checkedItems.length > 0 && (
               <Button
-                onClick={purchaseAllGroceries}
+                onClick={clearChecked}
+                variant="outline"
                 disabled={loading}
-                className="bg-gradient-to-r from-primary to-accent"
               >
-                <CheckCheck className="w-4 h-4 mr-2" />
-                {loading ? "Processing..." : "Purchased All Groceries"}
+                <Trash2 className="w-4 h-4 mr-2" />
+                Clear Checked
               </Button>
             )}
           </div>
@@ -343,77 +282,114 @@ const GroceryList = () => {
               placeholder="Add item to your list..."
               value={newItem}
               onChange={(e) => setNewItem(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newItem.trim()) {
-                  setItems((prev) => [
-                    {
-                      id: Date.now().toString(),
-                      name: newItem,
-                      quantity: "1",
-                      category: "Other",
-                      checked: false,
-                    },
-                    ...prev,
-                  ]);
-                  setNewItem("");
-                }
-              }}
+              onKeyDown={(e) => e.key === "Enter" && addItem()}
+              disabled={loading}
             />
             <Button
               className="bg-gradient-to-r from-primary to-accent"
-              onClick={() => {
-                if (newItem.trim()) {
-                  setItems((prev) => [
-                    {
-                      id: Date.now().toString(),
-                      name: newItem,
-                      quantity: "1",
-                      category: "Other",
-                      checked: false,
-                    },
-                    ...prev,
-                  ]);
-                  setNewItem("");
-                }
-              }}
+              onClick={addItem}
+              disabled={loading}
             >
               <Plus className="w-4 h-4" />
             </Button>
           </div>
         </Card>
 
-        {/* Items to Buy */}
-        {uncheckedItems.length > 0 && (
+        {/* My Items */}
+        {manualItems.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-foreground mb-3">To Buy</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-3">My Items</h2>
             <div className="space-y-2">
-              {uncheckedItems.map((item) => (
+              {manualItems.map((item) => (
                 <Card key={item.id} className="p-4">
                   <div className="flex items-center gap-4">
                     <Checkbox
                       checked={item.checked}
-                      onCheckedChange={() => toggleItem(item.id)}
+                      onCheckedChange={() => toggleItem(item.id, item.checked)}
                     />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="font-medium text-foreground">{item.name}</div>
-                        {item.recipeName && (
-                          <Badge variant="outline" className="text-xs">
-                            {item.recipeName}
-                          </Badge>
-                        )}
-                      </div>
+                      <div className="font-medium text-foreground">{item.item_name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {item.quantity}
+                        {item.quantity} {item.unit}
                       </div>
                     </div>
-                    <Badge variant="secondary">{item.category}</Badge>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => deleteItem(item.id)}
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* From Recipes You Made */}
+        {recipeItems.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+              From Recipes You Made
+            </h2>
+            <div className="space-y-2">
+              {recipeItems.map((item) => (
+                <Card key={item.id} className="p-4 border-yellow-500/20">
+                  <div className="flex items-center gap-4">
+                    <Checkbox
+                      checked={item.checked}
+                      onCheckedChange={() => toggleItem(item.id, item.checked)}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-foreground">{item.item_name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {item.quantity} {item.unit}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteItem(item.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recommended Items */}
+        {recommendations.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Recommended for You
+            </h2>
+            <p className="text-sm text-muted-foreground mb-3">
+              These ingredients would complete recipes you almost have all items for
+            </p>
+            <div className="space-y-2">
+              {recommendations.map((rec, idx) => (
+                <Card key={idx} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium text-foreground">{rec.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Needed for {rec.recipe_count} recipe{rec.recipe_count > 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => addRecommendedItem(rec.name)}
+                      disabled={loading}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add
                     </Button>
                   </div>
                 </Card>
@@ -434,27 +410,20 @@ const GroceryList = () => {
                   <div className="flex items-center gap-4">
                     <Checkbox
                       checked={item.checked}
-                      onCheckedChange={() => toggleItem(item.id)}
+                      onCheckedChange={() => toggleItem(item.id, item.checked)}
                     />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="font-medium text-foreground line-through">
-                          {item.name}
-                        </div>
-                        {item.recipeName && (
-                          <Badge variant="outline" className="text-xs opacity-60">
-                            {item.recipeName}
-                          </Badge>
-                        )}
+                      <div className="font-medium text-foreground line-through">
+                        {item.item_name}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {item.quantity}
+                        {item.quantity} {item.unit}
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => deleteItem(item.id)}
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
