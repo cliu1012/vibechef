@@ -10,41 +10,36 @@ interface Item {
   name: string;
   quantity: number;
   unit: string;
-  image: string;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  fiber?: number;
 }
 
 const commonItems = {
   fridge: [
-    { name: "Milk", unit: "L", image: "🥛", protein: 3.4, carbs: 5, fat: 3.3, fiber: 0 },
-    { name: "Eggs", unit: "count", image: "🥚", protein: 6, carbs: 0.6, fat: 5, fiber: 0 },
-    { name: "Spinach", unit: "g", image: "🥬", protein: 2.9, carbs: 3.6, fat: 0.4, fiber: 2.2 },
-    { name: "Yogurt", unit: "g", image: "🥣", protein: 10, carbs: 3.6, fat: 0.4, fiber: 0 },
-    { name: "Chicken Thigh", unit: "g", image: "🍗", protein: 26, carbs: 0, fat: 15, fiber: 0 },
-    { name: "Cheese", unit: "g", image: "🧀", protein: 25, carbs: 1.3, fat: 33, fiber: 0 },
-    { name: "Tomatoes", unit: "count", image: "🍅", protein: 0.9, carbs: 3.9, fat: 0.2, fiber: 1.2 },
-    { name: "Butter", unit: "g", image: "🧈", protein: 0.9, carbs: 0.1, fat: 81, fiber: 0 },
+    { name: "Milk", unit: "L" },
+    { name: "Eggs", unit: "count" },
+    { name: "Spinach", unit: "g" },
+    { name: "Yogurt", unit: "g" },
+    { name: "Chicken Thigh", unit: "g" },
+    { name: "Cheese", unit: "g" },
+    { name: "Tomatoes", unit: "count" },
+    { name: "Butter", unit: "g" },
   ],
   freezer: [
-    { name: "Frozen Peas", unit: "g", image: "🫛", protein: 5, carbs: 14, fat: 0.4, fiber: 5.7 },
-    { name: "Frozen Berries", unit: "g", image: "🫐", protein: 0.7, carbs: 14, fat: 0.3, fiber: 2.4 },
-    { name: "Ice Cream", unit: "L", image: "🍨", protein: 3.5, carbs: 24, fat: 11, fiber: 0.5 },
-    { name: "Frozen Pizza", unit: "count", image: "🍕", protein: 11, carbs: 33, fat: 10, fiber: 2.3 },
-    { name: "Frozen Fish", unit: "g", image: "🐟", protein: 22, carbs: 0, fat: 5, fiber: 0 },
-    { name: "Frozen Broccoli", unit: "g", image: "🥦", protein: 2.8, carbs: 7, fat: 0.4, fiber: 2.6 },
+    { name: "Frozen Peas", unit: "g" },
+    { name: "Frozen Berries", unit: "g" },
+    { name: "Ice Cream", unit: "L" },
+    { name: "Frozen Pizza", unit: "count" },
+    { name: "Frozen Fish", unit: "g" },
+    { name: "Frozen Broccoli", unit: "g" },
   ],
   pantry: [
-    { name: "Rice", unit: "kg", image: "🍚", protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4 },
-    { name: "Pasta", unit: "g", image: "🍝", protein: 5, carbs: 25, fat: 0.9, fiber: 1.8 },
-    { name: "Olive Oil", unit: "mL", image: "🫒", protein: 0, carbs: 0, fat: 14, fiber: 0 },
-    { name: "Flour", unit: "kg", image: "🌾", protein: 10, carbs: 76, fat: 1, fiber: 2.7 },
-    { name: "Sugar", unit: "g", image: "🍬", protein: 0, carbs: 100, fat: 0, fiber: 0 },
-    { name: "Salt", unit: "g", image: "🧂", protein: 0, carbs: 0, fat: 0, fiber: 0 },
-    { name: "Canned Beans", unit: "can", image: "🥫", protein: 6, carbs: 20, fat: 0.5, fiber: 6 },
-    { name: "Oats", unit: "g", image: "🌾", protein: 17, carbs: 66, fat: 7, fiber: 11 },
+    { name: "Rice", unit: "kg" },
+    { name: "Pasta", unit: "g" },
+    { name: "Olive Oil", unit: "mL" },
+    { name: "Flour", unit: "kg" },
+    { name: "Sugar", unit: "g" },
+    { name: "Salt", unit: "g" },
+    { name: "Canned Beans", unit: "can" },
+    { name: "Oats", unit: "g" },
   ],
 };
 
@@ -66,26 +61,17 @@ const InventorySetup = () => {
   const currentItems = commonItems[step];
   const currentSelected = selectedItems[step];
 
-  const handleItemToggle = (item: typeof commonItems.fridge[0]) => {
-    const exists = currentSelected.find((i) => i.name === item.name);
+  const handleItemToggle = (itemName: string, unit: string) => {
+    const exists = currentSelected.find((item) => item.name === itemName);
     if (exists) {
       setSelectedItems({
         ...selectedItems,
-        [step]: currentSelected.filter((i) => i.name !== item.name),
+        [step]: currentSelected.filter((item) => item.name !== itemName),
       });
     } else {
       setSelectedItems({
         ...selectedItems,
-        [step]: [...currentSelected, { 
-          name: item.name, 
-          quantity: 1, 
-          unit: item.unit,
-          image: item.image,
-          protein: item.protein,
-          carbs: item.carbs,
-          fat: item.fat,
-          fiber: item.fiber
-        }],
+        [step]: [...currentSelected, { name: itemName, quantity: 1, unit }],
       });
     }
   };
@@ -101,33 +87,13 @@ const InventorySetup = () => {
     });
   };
 
-  const handleMacroChange = (itemName: string, field: string, value: string) => {
-    setSelectedItems({
-      ...selectedItems,
-      [step]: currentSelected.map((item) =>
-        item.name === itemName
-          ? { ...item, [field]: parseFloat(value) || 0 }
-          : item
-      ),
-    });
-  };
-
   const handleAddCustomItem = () => {
     if (customItem.trim() && customQuantity) {
       setSelectedItems({
         ...selectedItems,
         [step]: [
           ...currentSelected,
-          { 
-            name: customItem, 
-            quantity: parseFloat(customQuantity), 
-            unit: "unit",
-            image: "📦",
-            protein: 0,
-            carbs: 0,
-            fat: 0,
-            fiber: 0
-          },
+          { name: customItem, quantity: parseFloat(customQuantity), unit: "unit" },
         ],
       });
       setCustomItem("");
@@ -181,7 +147,7 @@ const InventorySetup = () => {
         </div>
 
         {/* Common Items Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           {currentItems.map((item) => {
             const selected = currentSelected.find((i) => i.name === item.name);
             return (
@@ -192,75 +158,38 @@ const InventorySetup = () => {
                     ? "border-primary bg-primary/5"
                     : "hover:border-muted-foreground/50"
                 }`}
-                onClick={() => handleItemToggle(item)}
+                onClick={() => handleItemToggle(item.name, item.unit)}
               >
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="text-4xl">{item.image}</div>
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground mb-1">
-                      {item.name}
-                    </div>
-                    {selected && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleQuantityChange(item.name, -1);
-                          }}
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="text-sm min-w-[60px] text-center">
-                          {selected.quantity} {selected.unit}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleQuantityChange(item.name, 1);
-                          }}
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                <div className="font-medium text-foreground mb-2">
+                  {item.name}
                 </div>
                 {selected && (
-                  <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
-                    <Input
-                      type="number"
-                      placeholder="Protein (g)"
-                      value={selected.protein || ''}
-                      onChange={(e) => handleMacroChange(item.name, 'protein', e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Carbs (g)"
-                      value={selected.carbs || ''}
-                      onChange={(e) => handleMacroChange(item.name, 'carbs', e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Fat (g)"
-                      value={selected.fat || ''}
-                      onChange={(e) => handleMacroChange(item.name, 'fat', e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Fiber (g)"
-                      value={selected.fiber || ''}
-                      onChange={(e) => handleMacroChange(item.name, 'fiber', e.target.value)}
-                      className="h-8 text-xs"
-                    />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuantityChange(item.name, -1);
+                      }}
+                    >
+                      <Minus className="w-3 h-3" />
+                    </Button>
+                    <span className="text-sm min-w-[60px] text-center">
+                      {selected.quantity} {selected.unit}
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuantityChange(item.name, 1);
+                      }}
+                    >
+                      <Plus className="w-3 h-3" />
+                    </Button>
                   </div>
                 )}
               </Card>
