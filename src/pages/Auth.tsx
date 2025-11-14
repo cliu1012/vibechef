@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,52 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChefHat } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    // Redirect authenticated users
+    if (user) {
+      checkUserStatus();
+    }
+  }, [user]);
+
+  const checkUserStatus = async () => {
+    if (!user) return;
+
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!profile || !profile.onboarding_completed) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
+
+      const { data: inventory } = await supabase
+        .from('user_inventory')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      if (!inventory || inventory.length === 0) {
+        navigate("/inventory-setup", { replace: true });
+      } else {
+        navigate("/home", { replace: true });
+      }
+    } catch (error) {
+      console.error("Error checking user status:", error);
+    }
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
