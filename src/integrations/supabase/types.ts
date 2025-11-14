@@ -83,6 +83,137 @@ export type Database = {
         }
         Relationships: []
       }
+      recipe_ingredients: {
+        Row: {
+          created_at: string | null
+          food_id: string | null
+          id: string
+          quantity: number | null
+          raw_text: string
+          recipe_id: string
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          food_id?: string | null
+          id?: string
+          quantity?: number | null
+          raw_text: string
+          recipe_id: string
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          food_id?: string | null
+          id?: string
+          quantity?: number | null
+          raw_text?: string
+          recipe_id?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredients_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "food_database"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipe_tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          recipe_id: string
+          tag: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          recipe_id: string
+          tag: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          recipe_id?: string
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_tags_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes: {
+        Row: {
+          calories_per_serving: number | null
+          cook_time_minutes: number | null
+          created_at: string | null
+          description: string | null
+          difficulty: string | null
+          id: string
+          image_url: string | null
+          prep_time_minutes: number | null
+          servings: number | null
+          source: string | null
+          source_recipe_slug: string | null
+          source_url: string | null
+          steps: Json | null
+          title: string
+          total_time_minutes: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          calories_per_serving?: number | null
+          cook_time_minutes?: number | null
+          created_at?: string | null
+          description?: string | null
+          difficulty?: string | null
+          id?: string
+          image_url?: string | null
+          prep_time_minutes?: number | null
+          servings?: number | null
+          source?: string | null
+          source_recipe_slug?: string | null
+          source_url?: string | null
+          steps?: Json | null
+          title: string
+          total_time_minutes?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          calories_per_serving?: number | null
+          cook_time_minutes?: number | null
+          created_at?: string | null
+          description?: string | null
+          difficulty?: string | null
+          id?: string
+          image_url?: string | null
+          prep_time_minutes?: number | null
+          servings?: number | null
+          source?: string | null
+          source_recipe_slug?: string | null
+          source_url?: string | null
+          steps?: Json | null
+          title?: string
+          total_time_minutes?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_inventory: {
         Row: {
           calories: number | null
@@ -190,15 +321,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -325,6 +483,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const

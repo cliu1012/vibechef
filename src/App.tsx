@@ -12,6 +12,7 @@ import Inventory from "./pages/Inventory";
 import InventorySetup from "./pages/InventorySetup";
 import Recipes from "./pages/Recipes";
 import GroceryList from "./pages/GroceryList";
+import ImportRecipe from "./pages/ImportRecipe";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -84,6 +85,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <GroceryList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/import-recipe"
+            element={
+              <ProtectedRoute>
+                <ImportRecipe />
               </ProtectedRoute>
             }
           />
