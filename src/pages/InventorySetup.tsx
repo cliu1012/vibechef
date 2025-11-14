@@ -214,6 +214,16 @@ const InventorySetup = () => {
   const currentItems = commonItems[step];
   const currentSelected = selectedItems[step];
 
+  // Get available common items (not already added) - show 8 at a time
+  const getAvailableCommonItems = () => {
+    const allItems = currentItems || [];
+    const addedItemNames = currentSelected.map(item => item.name.toLowerCase());
+    const available = allItems.filter(
+      item => !addedItemNames.includes(item.name.toLowerCase())
+    );
+    return available.slice(0, 8);
+  };
+
   const handleItemToggle = (item: Item) => {
     const exists = currentSelected.find((i) => i.name === item.name);
     if (exists) {
@@ -420,7 +430,7 @@ const InventorySetup = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {currentItems.map((item) => {
+          {getAvailableCommonItems().map((item) => {
             const selected = currentSelected.find((i) => i.name === item.name);
             return (
               <Card
