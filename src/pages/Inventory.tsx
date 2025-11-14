@@ -80,6 +80,7 @@ const Inventory = () => {
   const [commonItemNames, setCommonItemNames] = useState<string[]>([]);
   const [customItem, setCustomItem] = useState("");
   const [customQuantity, setCustomQuantity] = useState("");
+  const [customUnit, setCustomUnit] = useState("g");
   const [selectedLocation, setSelectedLocation] = useState<"fridge" | "freezer" | "pantry">("fridge");
   const [openAutocomplete, setOpenAutocomplete] = useState(false);
 
@@ -284,7 +285,7 @@ const Inventory = () => {
         user_id: user.id,
         custom_name: customItem,
         quantity: parseFloat(customQuantity),
-        unit: "g",
+        unit: customUnit,
         location: selectedLocation,
         status: "in-stock",
         calories: foodItem?.["Caloric Value"] || null,
@@ -303,6 +304,7 @@ const Inventory = () => {
       setAddDialogOpen(false);
       setCustomItem("");
       setCustomQuantity("");
+      setCustomUnit("g");
       setSelectedLocation("fridge");
     }
   };
@@ -492,15 +494,34 @@ const Inventory = () => {
                 Type to search {foodDatabase.length.toLocaleString()} food items
               </p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="quantity">Quantity (grams)</Label>
-              <Input
-                id="quantity"
-                type="number"
-                placeholder="100"
-                value={customQuantity}
-                onChange={(e) => setCustomQuantity(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="quantity">Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  placeholder="100"
+                  value={customQuantity}
+                  onChange={(e) => setCustomQuantity(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="unit">Unit</Label>
+                <Select value={customUnit} onValueChange={setCustomUnit}>
+                  <SelectTrigger id="unit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-border z-50">
+                    <SelectItem value="g">g</SelectItem>
+                    <SelectItem value="kg">kg</SelectItem>
+                    <SelectItem value="ml">ml</SelectItem>
+                    <SelectItem value="l">L</SelectItem>
+                    <SelectItem value="oz">oz</SelectItem>
+                    <SelectItem value="lb">lb</SelectItem>
+                    <SelectItem value="count">count</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="location">Location</Label>
