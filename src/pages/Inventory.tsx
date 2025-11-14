@@ -135,6 +135,18 @@ const Inventory = () => {
   };
 
   const loadFoodDatabase = async () => {
+    // Check cache first
+    const cachedData = localStorage.getItem('foodDatabase');
+    const cacheTimestamp = localStorage.getItem('foodDatabaseTimestamp');
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    // Use cache if less than 1 day old
+    if (cachedData && cacheTimestamp && (Date.now() - parseInt(cacheTimestamp)) < oneDayMs) {
+      const parsedData = JSON.parse(cachedData);
+      setFoodDatabase(parsedData);
+      return;
+    }
+
     const datasets = [
       "/src/assets/data/FOOD-DATA-GROUP1.csv",
       "/src/assets/data/FOOD-DATA-GROUP2.csv",
@@ -172,6 +184,10 @@ const Inventory = () => {
       );
       const combinedData = allData.flat();
       setFoodDatabase(combinedData);
+      
+      // Cache the data
+      localStorage.setItem('foodDatabase', JSON.stringify(combinedData));
+      localStorage.setItem('foodDatabaseTimestamp', Date.now().toString());
     } catch (error) {
       console.error("Error loading food database:", error);
     }
