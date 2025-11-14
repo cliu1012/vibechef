@@ -44,13 +44,12 @@ interface Item {
 }
 
 interface FoodDatasetItem {
-  Food_Item: string;
-  Category: string;
-  "Calories (kcal)": number;
-  "Protein (g)": number;
-  "Carbohydrates (g)": number;
-  "Fat (g)": number;
-  "Fiber (g)": number;
+  food: string;
+  "Caloric Value": number;
+  Protein: number;
+  Carbohydrates: number;
+  Fat: number;
+  "Dietary Fiber": number;
 }
 
 const commonItems = {
@@ -300,68 +299,64 @@ const InventorySetup = () => {
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
-  const [nutritionDataset, setNutritionDataset] = useState<FoodDatasetItem[]>([]);
+  const [foodDatabase, setFoodDatabase] = useState<FoodDatasetItem[]>([]);
   const [openAutocomplete, setOpenAutocomplete] = useState(false);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<FoodDatasetItem[]>([]);
 
   useEffect(() => {
     loadFoodDatabase();
-    loadNutritionDataset();
   }, []);
 
   const loadFoodDatabase = async () => {
-    const { data } = await supabase.from("food_database").select("*");
-    if (data) {
-      setFoodDatabase(data);
-    }
-  };
+    const datasets = [
+      "/src/assets/data/FOOD-DATA-GROUP1.csv",
+      "/src/assets/data/FOOD-DATA-GROUP2.csv",
+      "/src/assets/data/FOOD-DATA-GROUP3.csv",
+      "/src/assets/data/FOOD-DATA-GROUP4.csv",
+      "/src/assets/data/FOOD-DATA-GROUP5.csv",
+    ];
 
-  const loadNutritionDataset = async () => {
     try {
-      const response = await fetch("/src/assets/data/daily_food_nutrition_dataset.csv");
-      const csvText = await response.text();
-      
-      Papa.parse<FoodDatasetItem>(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          // Get unique food items with their nutritional data
-          const uniqueFoods = new Map<string, FoodDatasetItem>();
-          results.data.forEach((item: any) => {
-            if (item.Food_Item && !uniqueFoods.has(item.Food_Item)) {
-              uniqueFoods.set(item.Food_Item, {
-                Food_Item: item.Food_Item,
-                Category: item.Category,
-                "Calories (kcal)": parseFloat(item["Calories (kcal)"]) || 0,
-                "Protein (g)": parseFloat(item["Protein (g)"]) || 0,
-                "Carbohydrates (g)": parseFloat(item["Carbohydrates (g)"]) || 0,
-                "Fat (g)": parseFloat(item["Fat (g)"]) || 0,
-                "Fiber (g)": parseFloat(item["Fiber (g)"]) || 0,
-              });
-            }
+      const allData = await Promise.all(
+        datasets.map(async (url) => {
+          const response = await fetch(url);
+          const csvText = await response.text();
+          return new Promise<FoodDatasetItem[]>((resolve) => {
+            Papa.parse(csvText, {
+              header: true,
+              dynamicTyping: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                const items = (results.data as any[])
+                  .filter((item) => item.food)
+                  .map((item) => ({
+                    food: item.food,
+                    "Caloric Value": parseFloat(item["Caloric Value"]) || 0,
+                    Protein: parseFloat(item.Protein) || 0,
+                    Carbohydrates: parseFloat(item.Carbohydrates) || 0,
+                    Fat: parseFloat(item.Fat) || 0,
+                    "Dietary Fiber": parseFloat(item["Dietary Fiber"]) || 0,
+                  }));
+                resolve(items);
+              },
+            });
           });
-          setNutritionDataset(Array.from(uniqueFoods.values()));
-        },
-      });
+        })
+      );
+      const combinedData = allData.flat();
+      setFoodDatabase(combinedData);
     } catch (error) {
-      console.error("Error loading nutrition dataset:", error);
+      console.error("Error loading food database:", error);
     }
   };
 
   // Filter suggestions based on custom item input
-  useEffect(() => {
-    if (customItem.trim().length > 0) {
-      const filtered = nutritionDataset
-        .filter(item => 
-          item.Food_Item.toLowerCase().includes(customItem.toLowerCase())
+  const filteredSuggestions = customItem.trim().length > 0
+    ? foodDatabase
+        .filter((item) =>
+          item.food.toLowerCase().includes(customItem.toLowerCase())
         )
-        .slice(0, 10); // Limit to 10 suggestions
-      setFilteredSuggestions(filtered);
-    } else {
-      setFilteredSuggestions([]);
-    }
-  }, [customItem, nutritionDataset]);
+        .slice(0, 10)
+    : [];
 
   const currentItems = commonItems[step];
   const currentSelected = selectedItems[step];
@@ -430,14 +425,14 @@ const InventorySetup = () => {
         [step]: [
           ...currentSelected,
           {
-            name: suggestion.Food_Item,
+            name: suggestion.food,
             quantity: parseFloat(customQuantity),
             unit: "g",
-            calories: suggestion["Calories (kcal)"],
-            protein: suggestion["Protein (g)"],
-            carbs: suggestion["Carbohydrates (g)"],
-            fat: suggestion["Fat (g)"],
-            fiber: suggestion["Fiber (g)"],
+            calories: suggestion["Caloric Value"],
+            protein: suggestion.Protein,
+            carbs: suggestion.Carbohydrates,
+            fat: suggestion.Fat,
+            fiber: suggestion["Dietary Fiber"],
             image: "📦",
           },
         ],
@@ -453,8 +448,8 @@ const InventorySetup = () => {
   const handleAddCustomItem = () => {
     if (customItem.trim() && customQuantity) {
       // Check if there's an exact match in the dataset
-      const exactMatch = nutritionDataset.find(
-        item => item.Food_Item.toLowerCase() === customItem.toLowerCase()
+      const exactMatch = foodDatabase.find(
+        item => item.food.toLowerCase() === customItem.toLowerCase()
       );
 
       if (exactMatch) {
@@ -499,12 +494,12 @@ const InventorySetup = () => {
 
         // Save to database
         const inventoryItems = allItems.map((item) => {
-          const foodItem = foodDatabase.find(f => f.name.toLowerCase() === item.name.toLowerCase());
+          const foodItem = foodDatabase.find(f => f.food.toLowerCase() === item.name.toLowerCase());
           
           return {
             user_id: user.id,
-            food_id: foodItem?.id || null,
-            custom_name: foodItem ? null : item.name,
+            food_id: null, // We're not using food_database table anymore, using CSV directly
+            custom_name: item.name,
             quantity: item.quantity,
             unit: item.unit,
             location: item.location,
@@ -667,21 +662,21 @@ const InventorySetup = () => {
                         <CommandGroup heading="Suggestions from database">
                           {filteredSuggestions.map((suggestion) => (
                             <CommandItem
-                              key={suggestion.Food_Item}
-                              value={suggestion.Food_Item}
+                              key={suggestion.food}
+                              value={suggestion.food}
                               onSelect={() => {
-                                setCustomItem(suggestion.Food_Item);
+                                setCustomItem(suggestion.food);
                                 handleSelectSuggestion(suggestion);
                               }}
                               className="cursor-pointer"
                             >
                               <div className="flex flex-col">
-                                <span className="font-medium">{suggestion.Food_Item}</span>
+                                <span className="font-medium">{suggestion.food}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {suggestion.Category} • {Math.round(suggestion["Calories (kcal)"])} cal • 
-                                  P: {suggestion["Protein (g)"].toFixed(1)}g • 
-                                  C: {suggestion["Carbohydrates (g)"].toFixed(1)}g • 
-                                  F: {suggestion["Fat (g)"].toFixed(1)}g
+                                  {Math.round(suggestion["Caloric Value"])} cal • 
+                                  P: {suggestion.Protein.toFixed(1)}g • 
+                                  C: {suggestion.Carbohydrates.toFixed(1)}g • 
+                                  F: {suggestion.Fat.toFixed(1)}g
                                 </span>
                               </div>
                             </CommandItem>
@@ -705,7 +700,7 @@ const InventorySetup = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Type to search {nutritionDataset.length.toLocaleString()} food items with nutritional data
+            Type to search {foodDatabase.length.toLocaleString()} food items with nutritional data
           </p>
         </Card>
 
