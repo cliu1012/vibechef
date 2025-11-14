@@ -41,7 +41,7 @@ const InventorySetup = () => {
   const [allFoods, setAllFoods] = useState<FoodItem[]>([]);
   const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
   const [displayedFoods, setDisplayedFoods] = useState<FoodItem[]>([]);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
   const [selectedItems, setSelectedItems] = useState<{
     fridge: SelectedItem[];
     freezer: SelectedItem[];
@@ -70,7 +70,7 @@ const InventorySetup = () => {
     if (allFoods.length > 0) {
       loadDisplayedFoods();
     }
-  }, [allFoods, step, currentPage]);
+  }, [allFoods, step, usedIndices]);
 
   const loadFoodDatabase = async () => {
     const datasets = [
@@ -143,12 +143,53 @@ const InventorySetup = () => {
 
   const loadDisplayedFoods = () => {
     const categoryFoods = allFoods.filter((food) => food.category === step);
-    const startIdx = currentPage * 8;
-    const endIdx = startIdx + 8;
-    setDisplayedFoods(categoryFoods.slice(startIdx, endIdx));
+    const availableIndices = categoryFoods
+      .map((_, idx) => idx)
+      .filter((idx) => !usedIndices.has(idx));
+
+    if (availableIndices.length < 8) {
+      // Reset if we don't have enough
+      setUsedIndices(new Set());
+      const shuffled = [...categoryFoods].sort(() => Math.random() - 0.5).slice(0, 8);
+      setDisplayedFoods(shuffled);
+      return;
+    }
+
+    // Shuffle and pick 8
+    const shuffled = [...availableIndices].sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 8);
+    
+    setDisplayedFoods(selected.map((idx) => categoryFoods[idx]));
   };
 
-  const selectFood = (food: FoodItem) => {
+  const replaceDisplayedFood = (index: number) => {
+    const categoryFoods = allFoods.filter((food) => food.category === step);
+    const currentFood = displayedFoods[index];
+    const currentIndex = categoryFoods.findIndex(f => f.id === currentFood.id);
+    
+    setUsedIndices((prev) => new Set([...prev, currentIndex]));
+    
+    const availableIndices = categoryFoods
+      .map((_, idx) => idx)
+      .filter((idx) => !usedIndices.has(idx) && idx !== currentIndex);
+
+    if (availableIndices.length === 0) {
+      // Reset and reload if we run out
+      setUsedIndices(new Set());
+      return;
+    }
+
+    const randomIndex =
+      availableIndices[Math.floor(Math.random() * availableIndices.length)];
+    
+    setDisplayedFoods((prev) => {
+      const newFoods = [...prev];
+      newFoods[index] = categoryFoods[randomIndex];
+      return newFoods;
+    });
+  };
+
+  const selectFood = (food: FoodItem, index: number) => {
     const newItem: SelectedItem = {
       ...food,
       quantity: 1,
@@ -161,6 +202,7 @@ const InventorySetup = () => {
     }));
     
     toast.success(`Added ${food.food}`);
+    replaceDisplayedFood(index);
   };
 
   const removeItem = (index: number) => {
@@ -204,10 +246,10 @@ const InventorySetup = () => {
   const handleNext = () => {
     if (step === "fridge") {
       setStep("freezer");
-      setCurrentPage(0);
+      setUsedIndices(new Set());
     } else if (step === "freezer") {
       setStep("pantry");
-      setCurrentPage(0);
+      setUsedIndices(new Set());
     } else {
       handleComplete();
     }
@@ -260,11 +302,6 @@ const InventorySetup = () => {
     }
   };
 
-  const categoryFoods = allFoods.filter((food) => food.category === step);
-  const totalPages = Math.ceil(categoryFoods.length / 8);
-  const hasNextPage = currentPage < totalPages - 1;
-  const hasPrevPage = currentPage > 0;
-
   if (loadingData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background flex items-center justify-center">
@@ -314,43 +351,23 @@ const InventorySetup = () => {
 
         {/* Common Foods Grid */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Common Items</h2>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => p - 1)}
-                disabled={!hasPrevPage}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground px-3 py-2">
-                {currentPage + 1} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => p + 1)}
-                disabled={!hasNextPage}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <h2 className="text-xl font-semibold mb-4">
+            Common Items (Click to add - new items appear as you select)
+          </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {displayedFoods.map((food) => (
+            {displayedFoods.map((food, index) => (
               <Card
-                key={food.id}
+                key={`${food.id}-${index}`}
                 className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary"
-                onClick={() => selectFood(food)}
+                onClick={() => selectFood(food, index)}
               >
                 <div className="text-center space-y-2">
                   <h3 className="font-medium text-sm capitalize line-clamp-2">
                     {food.food}
                   </h3>
                   <div className="text-xs text-muted-foreground space-y-1">
-                    <div>{Math.round(food.calories)} cal</div>
+                    <div className="font-semibold">{Math.round(food.calories)} cal</div>
+                    <div className="text-[10px] text-muted-foreground/70">per 100g</div>
                     <div className="flex justify-between">
                       <span>P: {food.protein.toFixed(1)}g</span>
                       <span>C: {food.carbs.toFixed(1)}g</span>
@@ -430,10 +447,10 @@ const InventorySetup = () => {
             onClick={() => {
               if (step === "freezer") {
                 setStep("fridge");
-                setCurrentPage(0);
+                setUsedIndices(new Set());
               } else if (step === "pantry") {
                 setStep("freezer");
-                setCurrentPage(0);
+                setUsedIndices(new Set());
               }
             }}
             disabled={step === "fridge"}
