@@ -393,7 +393,22 @@ const Recipes = () => {
             <>
               <DialogHeader>
                 <DialogTitle>{selectedRecipe.title}</DialogTitle>
-                {selectedRecipe.description && <DialogDescription>{selectedRecipe.description}</DialogDescription>}
+                <div className="space-y-2">
+                  {selectedRecipe.description && (
+                    <DialogDescription>{selectedRecipe.description}</DialogDescription>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Ingredient Match:</span>
+                      <Badge variant="secondary" className="font-semibold">
+                        {selectedRecipe.ingredientMatch.percentage}%
+                      </Badge>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      ({selectedRecipe.ingredientMatch.haveCount} of {selectedRecipe.ingredientMatch.totalCount} ingredients)
+                    </span>
+                  </div>
+                </div>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -410,15 +425,15 @@ const Recipes = () => {
                 {selectedRecipe.steps && (
                   <div>
                     <h3 className="font-semibold mb-2">Directions</h3>
-                    <ol className="list-decimal list-inside space-y-1">
+                    <ol className="list-decimal list-inside space-y-2">
                       {selectedRecipe.steps.map((step, i) => <li key={i}>{step}</li>)}
                     </ol>
                   </div>
                 )}
               </div>
-              <DialogFooter className="flex-col gap-2">
+              <DialogFooter className="flex-col gap-2 sticky bottom-0 bg-background pt-4 border-t">
                 <Button
-                  className="w-full bg-gradient-to-r from-primary to-accent"
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
                   size="lg"
                   onClick={() => {
                     setCompletingRecipe(selectedRecipe);
