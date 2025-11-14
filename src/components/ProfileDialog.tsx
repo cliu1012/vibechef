@@ -353,12 +353,34 @@ export const ProfileDialog = () => {
               </div>
             </div>
 
-            {/* Favorite Meals - Placeholder */}
+            {/* Cooked Recipes */}
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Favorite Meals</Label>
-              <p className="text-sm text-muted-foreground">
-                Coming soon - Track meals you've rated highly
-              </p>
+              <Label className="text-base font-semibold">My Recipes</Label>
+              {(() => {
+                const cookedRecipes = JSON.parse(localStorage.getItem('cookedRecipes') || '[]');
+                const userRecipes = cookedRecipes.filter((r: any) => r.userId === user?.id);
+                
+                if (userRecipes.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      No recipes cooked yet. Start cooking to see your history here!
+                    </p>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {userRecipes.slice().reverse().slice(0, 10).map((recipe: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                        <span className="text-sm">{recipe.recipeName}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(recipe.cookedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Favorite Cuisines - Placeholder */}

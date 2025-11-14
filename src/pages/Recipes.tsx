@@ -196,6 +196,47 @@ const Recipes = () => {
     return { percentage, haveCount, totalCount: recipe.ingredients.length };
   };
 
+  const handleAddMissingToList = async (recipe: RecipeWithMatch) => {
+    if (!user) return;
+    
+    const missingIngredients = recipe.ingredients.filter((ingredient) => {
+      const hasIngredient = inventory.some((item) => {
+        const itemName = item.custom_name || item.food_database?.name || "";
+        return (
+          itemName.toLowerCase().includes(ingredient.name.toLowerCase()) ||
+          ingredient.name.toLowerCase().includes(itemName.toLowerCase())
+        ) && item.quantity >= ingredient.quantity;
+      });
+      return !hasIngredient;
+    });
+
+    if (missingIngredients.length === 0) {
+      toast.info("You already have all ingredients!");
+      return;
+    }
+
+    try {
+      // Get existing grocery list from localStorage
+      const existingList = JSON.parse(localStorage.getItem('groceryList') || '[]');
+      
+      const newItems = missingIngredients.map((ing) => ({
+        id: `${Date.now()}-${Math.random()}`,
+        name: ing.name,
+        quantity: `${ing.quantity} ${ing.unit}`,
+        category: "Recipe Ingredients",
+        checked: false,
+        recipeId: recipe.id,
+        recipeName: recipe.name,
+      }));
+
+      localStorage.setItem('groceryList', JSON.stringify([...existingList, ...newItems]));
+      toast.success(`Added ${missingIngredients.length} items to grocery list!`);
+    } catch (error) {
+      console.error("Error adding to grocery list:", error);
+      toast.error("Failed to add items to grocery list");
+    }
+  };
+
   const handleCookRecipe = async (recipe: RecipeWithMatch) => {
     if (!user) return;
     
@@ -228,7 +269,17 @@ const Recipes = () => {
         }
       }
 
-      toast.success(`Cooked ${recipe.name}! Inventory updated.`);
+      // Save cooked recipe to localStorage (will be moved to DB later)
+      const cookedRecipes = JSON.parse(localStorage.getItem('cookedRecipes') || '[]');
+      cookedRecipes.push({
+        recipeId: recipe.id,
+        recipeName: recipe.name,
+        cookedAt: new Date().toISOString(),
+        userId: user.id,
+      });
+      localStorage.setItem('cookedRecipes', JSON.stringify(cookedRecipes));
+
+      toast.success(`Cooked ${recipe.name}! Added to your recipes.`);
       setSelectedRecipe(null);
       loadInventory(); // Reload inventory
     } catch (error) {
@@ -427,6 +478,16 @@ const Recipes = () => {
                 </div>
               </div>
 
+              {selectedRecipe.ingredientMatch.percentage < 100 && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleAddMissingToList(selectedRecipe)}
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  Add Missing to Grocery List
+                </Button>
+              )}
               <Button
                 className="w-full"
                 onClick={() => handleCookRecipe(selectedRecipe)}
@@ -437,7 +498,7 @@ const Recipes = () => {
               </Button>
               {selectedRecipe.ingredientMatch.percentage < 100 && (
                 <p className="text-sm text-center text-muted-foreground">
-                  Add missing ingredients to your inventory first
+                  Add missing ingredients first or add to grocery list
                 </p>
               )}
             </div>
