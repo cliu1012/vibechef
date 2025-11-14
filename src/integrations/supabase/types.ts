@@ -274,6 +274,7 @@ export type Database = {
           title: string
           total_time_minutes: number | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           calories_per_serving?: number | null
@@ -293,6 +294,7 @@ export type Database = {
           title: string
           total_time_minutes?: number | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           calories_per_serving?: number | null
@@ -312,6 +314,7 @@ export type Database = {
           title?: string
           total_time_minutes?: number | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

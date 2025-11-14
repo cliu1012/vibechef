@@ -81,6 +81,15 @@ interface CSVRecipe {
   steps: string;
 }
 
+interface CSVRecipeWithMatch extends CSVRecipe {
+  ingredientMatch: {
+    percentage: number;
+    haveCount: number;
+    totalCount: number;
+    missingIngredients: string[];
+  };
+}
+
 const Recipes = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,7 +97,7 @@ const Recipes = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [csvRecipes, setCsvRecipes] = useState<CSVRecipe[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeWithMatch | null>(null);
-  const [selectedCSVRecipe, setSelectedCSVRecipe] = useState<CSVRecipe | null>(null);
+  const [selectedCSVRecipe, setSelectedCSVRecipe] = useState<CSVRecipeWithMatch | null>(null);
   const [loading, setLoading] = useState(false);
   const [userAllergies, setUserAllergies] = useState<string[]>([]);
   const [selectedCuisine, setSelectedCuisine] = useState<string>("all");
@@ -216,6 +225,45 @@ const Recipes = () => {
     };
   };
 
+  const calculateCSVIngredientMatch = (csvRecipe: CSVRecipe) => {
+    const ingredientsList = csvRecipe.ingredients.split(';').map(i => i.trim());
+    
+    if (!inventory.length)
+      return {
+        percentage: 0,
+        haveCount: 0,
+        totalCount: ingredientsList.length,
+        missingIngredients: ingredientsList,
+      };
+
+    let haveCount = 0;
+    const missingIngredients: string[] = [];
+
+    ingredientsList.forEach((ingredient) => {
+      const ingredientText = ingredient.toLowerCase();
+      const matchingItem = inventory.find((item) => {
+        const itemName = (item.custom_name || item.food_database?.name || "").toLowerCase();
+        return itemName && (ingredientText.includes(itemName) || itemName.includes(ingredientText.split(" ")[0]));
+      });
+
+      if (matchingItem) {
+        haveCount++;
+      } else {
+        missingIngredients.push(ingredient);
+      }
+    });
+
+    const percentage =
+      ingredientsList.length > 0 ? Math.round((haveCount / ingredientsList.length) * 100) : 0;
+
+    return {
+      percentage,
+      haveCount,
+      totalCount: ingredientsList.length,
+      missingIngredients,
+    };
+  };
+
   const addMissingToGroceryList = async (recipe: RecipeWithMatch) => {
     if (!user) return;
 
@@ -262,7 +310,12 @@ const Recipes = () => {
   const cuisines = ["all", ...Array.from(new Set(csvRecipes.map(r => r.cuisine).filter(Boolean)))];
   const difficulties = ["all", "Easy", "Medium", "Hard"];
 
-  const filteredCSVRecipes = csvRecipes.filter((recipe) => {
+  const csvRecipesWithMatch: CSVRecipeWithMatch[] = csvRecipes.map((recipe) => ({
+    ...recipe,
+    ingredientMatch: calculateCSVIngredientMatch(recipe),
+  }));
+
+  const filteredCSVRecipes = csvRecipesWithMatch.filter((recipe) => {
     const matchesSearch = recipe.recipe_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCuisine = selectedCuisine === "all" || recipe.cuisine === selectedCuisine;
     const matchesDifficulty = selectedDifficulty === "all" || recipe.difficulty === selectedDifficulty;
@@ -356,6 +409,15 @@ const Recipes = () => {
                           <div className="flex items-center gap-1">
                             <Clock className="w-4 h-4" />
                             {recipe.time_to_cook_min}m
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <div className="flex justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">Ingredient Match</span>
+                            <span className="text-sm font-semibold text-primary">{recipe.ingredientMatch.percentage}%</span>
+                          </div>
+                          <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-primary h-full" style={{ width: `${recipe.ingredientMatch.percentage}%` }} />
                           </div>
                         </div>
                       </div>
@@ -506,9 +568,27 @@ const Recipes = () => {
               <DialogHeader>
                 <DialogTitle>{selectedCSVRecipe.recipe_name}</DialogTitle>
                 <DialogDescription>
-                  <div className="flex gap-2 mt-2">
-                    <Badge>{selectedCSVRecipe.cuisine}</Badge>
-                    <Badge variant="outline">{selectedCSVRecipe.difficulty}</Badge>
+                  <div className="space-y-2">
+                    <div className="flex gap-2 mt-2">
+                      <Badge>{selectedCSVRecipe.cuisine}</Badge>
+                      <Badge variant="outline">{selectedCSVRecipe.difficulty}</Badge>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Ingredient Match:</span>
+                        <Badge variant="secondary" className="font-semibold">
+                          {selectedCSVRecipe.ingredientMatch.percentage}%
+                        </Badge>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        ({selectedCSVRecipe.ingredientMatch.haveCount} of {selectedCSVRecipe.ingredientMatch.totalCount} ingredients)
+                      </span>
+                      {selectedCSVRecipe.ingredientMatch.missingIngredients.length > 0 && (
+                        <Badge variant="outline" className="text-orange-500 border-orange-500">
+                          {selectedCSVRecipe.ingredientMatch.missingIngredients.length} missing
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </DialogDescription>
               </DialogHeader>
@@ -530,24 +610,62 @@ const Recipes = () => {
                 <div>
                   <h3 className="font-semibold mb-2">Ingredients</h3>
                   <ul className="space-y-1">
-                    {selectedCSVRecipe.ingredients.split(';').map((ing, idx) => (
-                      <li key={idx} className="flex items-center gap-2 text-sm">
-                        <CheckCircle2 className="w-4 h-4" />
-                        {ing.trim()}
-                      </li>
-                    ))}
+                    {selectedCSVRecipe.ingredients.split(';').map((ing, idx) => {
+                      const isMissing = selectedCSVRecipe.ingredientMatch.missingIngredients.includes(ing.trim());
+                      return (
+                        <li key={idx} className="flex items-center gap-2 text-sm">
+                          {isMissing ? (
+                            <AlertCircle className="w-4 h-4 text-orange-500" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          )}
+                          <span className={isMissing ? "text-muted-foreground" : ""}>{ing.trim()}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>
-              <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
+              <DialogFooter className="flex-col gap-2 sticky bottom-0 bg-background pt-4 border-t sm:flex-row">
+                {selectedCSVRecipe.ingredientMatch.missingIngredients.length > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!user || !selectedCSVRecipe) return;
+
+                      try {
+                        const groceryItems = selectedCSVRecipe.ingredientMatch.missingIngredients.map((ingredient) => ({
+                          user_id: user.id,
+                          item_name: ingredient,
+                          quantity: 1,
+                          unit: "serving",
+                          source: "recipe",
+                        }));
+
+                        const { error } = await supabase.from("grocery_list").insert(groceryItems);
+
+                        if (error) throw error;
+
+                        toast.success(`Added ${groceryItems.length} missing ingredients to grocery list`);
+                      } catch (error) {
+                        console.error("Error adding to grocery list:", error);
+                        toast.error("Failed to add items to grocery list");
+                      }
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Missing to Grocery List
+                  </Button>
+                )}
                 <Button
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90"
                   size="lg"
                   onClick={async () => {
                     if (!selectedCSVRecipe) return;
                     
                     try {
-                      // First, save the CSV recipe to database
+                      // First, save the CSV recipe to database with user_id
                       const { data: recipe, error: recipeError } = await supabase
                         .from('recipes')
                         .insert({
@@ -556,6 +674,7 @@ const Recipes = () => {
                           difficulty: selectedCSVRecipe.difficulty,
                           total_time_minutes: parseInt(selectedCSVRecipe.time_to_cook_min),
                           steps: selectedCSVRecipe.steps.split('|').map(s => s.trim()),
+                          user_id: user?.id,
                         })
                         .select()
                         .single();
