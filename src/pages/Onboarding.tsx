@@ -63,7 +63,7 @@ const Onboarding = () => {
   const handleComplete = () => {
     // Store preferences in localStorage for now
     localStorage.setItem("userPreferences", JSON.stringify(preferences));
-    navigate("/home");
+    navigate("/inventory-setup");
   };
 
   return (
