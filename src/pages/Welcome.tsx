@@ -49,7 +49,7 @@ const Welcome = () => {
             <Button
               size="lg"
               className="text-lg px-8 py-6 h-auto bg-gradient-to-r from-primary via-primary to-accent hover:opacity-90 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
-              onClick={() => navigate("/onboarding")}
+              onClick={() => navigate("/auth")}
             >
               Get Started
               <ArrowRight className="ml-2 w-5 h-5" />
