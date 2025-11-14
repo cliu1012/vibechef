@@ -16,6 +16,8 @@ import {
   Settings,
   Filter,
   Check,
+  AlertCircle,
+  Plus,
 } from "lucide-react";
 import Papa from "papaparse";
 import recipesCSV from "@/assets/data/recipes_display.csv?raw";
@@ -58,10 +60,11 @@ interface Recipe {
 }
 
 interface RecipeWithMatch extends Recipe {
-  ingredientMatch: { 
-    percentage: number; 
-    haveCount: number; 
+  ingredientMatch: {
+    percentage: number;
+    haveCount: number;
     totalCount: number;
+    missingIngredients: string[];
   };
 }
 
@@ -187,18 +190,64 @@ const Recipes = () => {
   };
 
   const calculateIngredientMatch = (recipe: Recipe) => {
-    if (!inventory.length) return { percentage: 0, haveCount: 0, totalCount: recipe.ingredients.length };
+    if (!inventory.length)
+      return {
+        percentage: 0,
+        haveCount: 0,
+        totalCount: recipe.ingredients.length,
+        missingIngredients: recipe.ingredients.map((i) => i.raw_text),
+      };
+
     let haveCount = 0;
+    const missingIngredients: string[] = [];
+
     recipe.ingredients.forEach((ingredient) => {
       const ingredientText = ingredient.raw_text.toLowerCase();
       const matchingItem = inventory.find((item) => {
         const itemName = (item.custom_name || item.food_database?.name || "").toLowerCase();
-        return itemName && (ingredientText.includes(itemName) || itemName.includes(ingredientText.split(' ')[0]));
+        return itemName && (ingredientText.includes(itemName) || itemName.includes(ingredientText.split(" ")[0]));
       });
-      if (matchingItem) haveCount++;
+
+      if (matchingItem) {
+        haveCount++;
+      } else {
+        missingIngredients.push(ingredient.raw_text);
+      }
     });
-    const percentage = recipe.ingredients.length > 0 ? Math.round((haveCount / recipe.ingredients.length) * 100) : 0;
-    return { percentage, haveCount, totalCount: recipe.ingredients.length };
+
+    const percentage =
+      recipe.ingredients.length > 0 ? Math.round((haveCount / recipe.ingredients.length) * 100) : 0;
+
+    return {
+      percentage,
+      haveCount,
+      totalCount: recipe.ingredients.length,
+      missingIngredients,
+    };
+  };
+
+  const addMissingToGroceryList = async (recipe: RecipeWithMatch) => {
+    if (!user) return;
+
+    try {
+      const groceryItems = recipe.ingredientMatch.missingIngredients.map((ingredient) => ({
+        user_id: user.id,
+        item_name: ingredient,
+        quantity: 1,
+        unit: "serving",
+        source: "recipe",
+        recipe_id: recipe.id,
+      }));
+
+      const { error } = await supabase.from("grocery_list").insert(groceryItems);
+
+      if (error) throw error;
+
+      toast.success(`Added ${groceryItems.length} missing ingredients to grocery list`);
+    } catch (error) {
+      console.error("Error adding to grocery list:", error);
+      toast.error("Failed to add items to grocery list");
+    }
   };
 
   const filteredRecipes = recipes.filter((recipe) => {
@@ -407,6 +456,11 @@ const Recipes = () => {
                     <span className="text-sm text-muted-foreground">
                       ({selectedRecipe.ingredientMatch.haveCount} of {selectedRecipe.ingredientMatch.totalCount} ingredients)
                     </span>
+                    {selectedRecipe.ingredientMatch.missingIngredients.length > 0 && (
+                      <Badge variant="outline" className="text-orange-500 border-orange-500">
+                        {selectedRecipe.ingredientMatch.missingIngredients.length} missing
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </DialogHeader>
@@ -414,12 +468,19 @@ const Recipes = () => {
                 <div>
                   <h3 className="font-semibold mb-2">Ingredients</h3>
                   <ul className="space-y-1">
-                    {selectedRecipe.ingredients.map((ing) => (
-                      <li key={ing.id} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" />
-                        {ing.raw_text}
-                      </li>
-                    ))}
+                    {selectedRecipe.ingredients.map((ing) => {
+                      const isMissing = selectedRecipe.ingredientMatch.missingIngredients.includes(ing.raw_text);
+                      return (
+                        <li key={ing.id} className="flex items-center gap-2">
+                          {isMissing ? (
+                            <AlertCircle className="w-4 h-4 text-orange-500" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          )}
+                          <span className={isMissing ? "text-muted-foreground" : ""}>{ing.raw_text}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
                 {selectedRecipe.steps && (
@@ -431,9 +492,19 @@ const Recipes = () => {
                   </div>
                 )}
               </div>
-              <DialogFooter className="flex-col gap-2 sticky bottom-0 bg-background pt-4 border-t">
+              <DialogFooter className="flex-col gap-2 sticky bottom-0 bg-background pt-4 border-t sm:flex-row">
+                {selectedRecipe.ingredientMatch.missingIngredients.length > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => addMissingToGroceryList(selectedRecipe)}
+                    className="w-full sm:w-auto"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Missing to Grocery List
+                  </Button>
+                )}
                 <Button
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90"
                   size="lg"
                   onClick={() => {
                     setCompletingRecipe(selectedRecipe);
