@@ -193,10 +193,24 @@ const Recipes = () => {
         <div className="flex items-center justify-between mb-6">
           <BackButton />
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => navigate('/import-recipe')}>
-              <Settings className="w-4 h-4 mr-2" />
-              Import Recipe
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/import-recipe')}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Import from MyPlate
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/import-csv-recipes')}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Import CSV Recipes
+              </Button>
+            </div>
           )}
         </div>
 

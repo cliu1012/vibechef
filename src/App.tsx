@@ -14,6 +14,7 @@ import InventorySetup from "./pages/InventorySetup";
 import Recipes from "./pages/Recipes";
 import GroceryList from "./pages/GroceryList";
 import ImportRecipe from "./pages/ImportRecipe";
+import ImportCSVRecipes from "./pages/ImportCSVRecipes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -109,6 +110,14 @@ const App = () => (
             element={
               <ProtectedRouteWithOnboarding>
                 <ImportRecipe />
+              </ProtectedRouteWithOnboarding>
+            }
+          />
+          <Route
+            path="/import-csv-recipes"
+            element={
+              <ProtectedRouteWithOnboarding>
+                <ImportCSVRecipes />
               </ProtectedRouteWithOnboarding>
             }
           />
