@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Settings,
   Filter,
+  Check,
 } from "lucide-react";
 import Papa from "papaparse";
 import recipesCSV from "@/assets/data/recipes_display.csv?raw";
@@ -29,7 +30,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { RecipeCompletionDialog } from "@/components/RecipeCompletionDialog";
 
 interface RecipeIngredient {
   id: string;
@@ -98,6 +101,8 @@ const Recipes = () => {
   const [selectedCuisine, setSelectedCuisine] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
   const [maxCookTime, setMaxCookTime] = useState<number>(120);
+  const [completionDialogOpen, setCompletionDialogOpen] = useState(false);
+  const [completingRecipe, setCompletingRecipe] = useState<RecipeWithMatch | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -411,10 +416,36 @@ const Recipes = () => {
                   </div>
                 )}
               </div>
+              <DialogFooter>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setCompletingRecipe(selectedRecipe);
+                    setSelectedRecipe(null);
+                    setCompletionDialogOpen(true);
+                  }}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Mark as Complete
+                </Button>
+              </DialogFooter>
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      {completingRecipe && (
+        <RecipeCompletionDialog
+          open={completionDialogOpen}
+          onOpenChange={(open) => {
+            setCompletionDialogOpen(open);
+            if (!open) setCompletingRecipe(null);
+          }}
+          recipeId={completingRecipe.id}
+          recipeName={completingRecipe.title}
+          ingredients={completingRecipe.ingredients}
+        />
+      )}
 
       <Dialog open={!!selectedCSVRecipe} onOpenChange={() => setSelectedCSVRecipe(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileDialog } from "@/components/ProfileDialog";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ChefHat,
   ShoppingCart,
@@ -15,10 +17,28 @@ import {
 
 const Home = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [lowStockItems, setLowStockItems] = useState(0);
 
-  // Mock data - will be replaced with real data later
-  const lowStockItems = 3;
-  const expiringItems = 2;
+  useEffect(() => {
+    if (user) {
+      loadLowStockCount();
+    }
+  }, [user]);
+
+  const loadLowStockCount = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("user_inventory")
+      .select("quantity")
+      .eq("user_id", user.id)
+      .lte("quantity", 1);
+
+    if (!error && data) {
+      setLowStockItems(data.length);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
@@ -39,49 +59,26 @@ const Home = () => {
         </div>
 
         {/* Alert Cards */}
-        {(lowStockItems > 0 || expiringItems > 0) && (
-          <div className="grid md:grid-cols-2 gap-4 mb-8">
-            {lowStockItems > 0 && (
-              <Card className="p-4 border-warning/50 bg-warning/5">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
-                    <TrendingDown className="w-5 h-5 text-warning" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground mb-1">
-                      Low Stock Alert
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      You have {lowStockItems} items running low
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => navigate("/inventory")}>
-                    View
-                  </Button>
+        {lowStockItems > 0 && (
+          <div className="mb-8">
+            <Card className="p-4 border-warning/50 bg-warning/5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
+                  <TrendingDown className="w-5 h-5 text-warning" />
                 </div>
-              </Card>
-            )}
-
-            {expiringItems > 0 && (
-              <Card className="p-4 border-destructive/50 bg-destructive/5">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="w-5 h-5 text-destructive" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground mb-1">
-                      Expiring Soon
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {expiringItems} items need to be used soon
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => navigate("/inventory")}>
-                    View
-                  </Button>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground mb-1">
+                    Low Stock Alert
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    You have {lowStockItems} items with 1 serving or less remaining
+                  </p>
                 </div>
-              </Card>
-            )}
+                <Button variant="ghost" size="sm" onClick={() => navigate("/inventory")}>
+                  View
+                </Button>
+              </div>
+            </Card>
           </div>
         )}
 
