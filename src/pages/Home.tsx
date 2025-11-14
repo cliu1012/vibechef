@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { ProfileDialog } from "@/components/ProfileDialog";
 import {
   ChefHat,
   ShoppingCart,
@@ -10,12 +11,10 @@ import {
   AlertCircle,
   TrendingDown,
   Sparkles,
-  LogOut,
 } from "lucide-react";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
 
   // Mock data - will be replaced with real data later
   const lowStockItems = 3;
@@ -24,12 +23,9 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Sign Out Button */}
+        {/* Profile Button */}
         <div className="flex justify-end mb-4">
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <ProfileDialog />
         </div>
         
         {/* Header */}
