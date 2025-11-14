@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "./hooks/useAuth";
 import Welcome from "./pages/Welcome";
+import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
@@ -15,30 +16,17 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const InventoryGuard = ({ children }: { children: React.ReactNode }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isChecking, setIsChecking] = useState(true);
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    const checkInventory = () => {
-      const inventory = localStorage.getItem("inventory");
-      const hasInventory = inventory && JSON.parse(inventory);
-      const totalItems =
-        (hasInventory?.fridge?.length || 0) +
-        (hasInventory?.freezer?.length || 0) +
-        (hasInventory?.pantry?.length || 0);
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
-      if (totalItems === 0 && location.pathname === "/home") {
-        navigate("/inventory-setup", { replace: true });
-      }
-      setIsChecking(false);
-    };
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
-    checkInventory();
-  }, [navigate, location]);
-
-  if (isChecking) return null;
   return <>{children}</>;
 };
 
@@ -48,19 +36,59 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <InventoryGuard>
-          <Routes>
-            <Route path="/" element={<Welcome />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/home" element={<Home />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/inventory-setup" element={<InventorySetup />} />
-            <Route path="/recipes" element={<Recipes />} />
-            <Route path="/grocery-list" element={<GroceryList />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </InventoryGuard>
+        <Routes>
+          <Route path="/" element={<Welcome />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute>
+                <Inventory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory-setup"
+            element={
+              <ProtectedRoute>
+                <InventorySetup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/recipes"
+            element={
+              <ProtectedRoute>
+                <Recipes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/grocery-list"
+            element={
+              <ProtectedRoute>
+                <GroceryList />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
