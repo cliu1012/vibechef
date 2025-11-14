@@ -8,6 +8,7 @@ import { ChevronRight, Plus, Minus, Edit2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import Papa from "papaparse";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface Item {
   name: string;
@@ -27,6 +41,16 @@ interface Item {
   fat?: number;
   fiber?: number;
   image?: string;
+}
+
+interface FoodDatasetItem {
+  Food_Item: string;
+  Category: string;
+  "Calories (kcal)": number;
+  "Protein (g)": number;
+  "Carbohydrates (g)": number;
+  "Fat (g)": number;
+  "Fiber (g)": number;
 }
 
 const commonItems = {
@@ -277,9 +301,13 @@ const InventorySetup = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
+  const [nutritionDataset, setNutritionDataset] = useState<FoodDatasetItem[]>([]);
+  const [openAutocomplete, setOpenAutocomplete] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<FoodDatasetItem[]>([]);
 
   useEffect(() => {
     loadFoodDatabase();
+    loadNutritionDataset();
   }, []);
 
   const loadFoodDatabase = async () => {
@@ -288,6 +316,52 @@ const InventorySetup = () => {
       setFoodDatabase(data);
     }
   };
+
+  const loadNutritionDataset = async () => {
+    try {
+      const response = await fetch("/src/assets/data/daily_food_nutrition_dataset.csv");
+      const csvText = await response.text();
+      
+      Papa.parse<FoodDatasetItem>(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          // Get unique food items with their nutritional data
+          const uniqueFoods = new Map<string, FoodDatasetItem>();
+          results.data.forEach((item: any) => {
+            if (item.Food_Item && !uniqueFoods.has(item.Food_Item)) {
+              uniqueFoods.set(item.Food_Item, {
+                Food_Item: item.Food_Item,
+                Category: item.Category,
+                "Calories (kcal)": parseFloat(item["Calories (kcal)"]) || 0,
+                "Protein (g)": parseFloat(item["Protein (g)"]) || 0,
+                "Carbohydrates (g)": parseFloat(item["Carbohydrates (g)"]) || 0,
+                "Fat (g)": parseFloat(item["Fat (g)"]) || 0,
+                "Fiber (g)": parseFloat(item["Fiber (g)"]) || 0,
+              });
+            }
+          });
+          setNutritionDataset(Array.from(uniqueFoods.values()));
+        },
+      });
+    } catch (error) {
+      console.error("Error loading nutrition dataset:", error);
+    }
+  };
+
+  // Filter suggestions based on custom item input
+  useEffect(() => {
+    if (customItem.trim().length > 0) {
+      const filtered = nutritionDataset
+        .filter(item => 
+          item.Food_Item.toLowerCase().includes(customItem.toLowerCase())
+        )
+        .slice(0, 10); // Limit to 10 suggestions
+      setFilteredSuggestions(filtered);
+    } else {
+      setFilteredSuggestions([]);
+    }
+  }, [customItem, nutritionDataset]);
 
   const currentItems = commonItems[step];
   const currentSelected = selectedItems[step];
@@ -349,22 +423,59 @@ const InventorySetup = () => {
     }
   };
 
-  const handleAddCustomItem = () => {
-    if (customItem.trim() && customQuantity) {
+  const handleSelectSuggestion = (suggestion: FoodDatasetItem) => {
+    if (customQuantity) {
       setSelectedItems({
         ...selectedItems,
         [step]: [
           ...currentSelected,
           {
-            name: customItem,
+            name: suggestion.Food_Item,
             quantity: parseFloat(customQuantity),
-            unit: "unit",
+            unit: "g",
+            calories: suggestion["Calories (kcal)"],
+            protein: suggestion["Protein (g)"],
+            carbs: suggestion["Carbohydrates (g)"],
+            fat: suggestion["Fat (g)"],
+            fiber: suggestion["Fiber (g)"],
             image: "📦",
           },
         ],
       });
       setCustomItem("");
       setCustomQuantity("");
+      setOpenAutocomplete(false);
+    } else {
+      toast.error("Please enter a quantity first");
+    }
+  };
+
+  const handleAddCustomItem = () => {
+    if (customItem.trim() && customQuantity) {
+      // Check if there's an exact match in the dataset
+      const exactMatch = nutritionDataset.find(
+        item => item.Food_Item.toLowerCase() === customItem.toLowerCase()
+      );
+
+      if (exactMatch) {
+        handleSelectSuggestion(exactMatch);
+      } else {
+        // Add without nutritional data
+        setSelectedItems({
+          ...selectedItems,
+          [step]: [
+            ...currentSelected,
+            {
+              name: customItem,
+              quantity: parseFloat(customQuantity),
+              unit: "unit",
+              image: "📦",
+            },
+          ],
+        });
+        setCustomItem("");
+        setCustomQuantity("");
+      }
     }
   };
 
@@ -534,15 +645,57 @@ const InventorySetup = () => {
             Add Custom Item
           </h3>
           <div className="flex gap-2">
-            <Input
-              placeholder="Item name"
-              value={customItem}
-              onChange={(e) => setCustomItem(e.target.value)}
-              className="flex-1"
-            />
+            <div className="flex-1 relative">
+              <Popover open={openAutocomplete && filteredSuggestions.length > 0} onOpenChange={setOpenAutocomplete}>
+                <PopoverTrigger asChild>
+                  <Input
+                    placeholder="Item name (start typing for suggestions)"
+                    value={customItem}
+                    onChange={(e) => {
+                      setCustomItem(e.target.value);
+                      setOpenAutocomplete(true);
+                    }}
+                    onFocus={() => setOpenAutocomplete(true)}
+                    className="flex-1"
+                  />
+                </PopoverTrigger>
+                {filteredSuggestions.length > 0 && (
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>No food items found.</CommandEmpty>
+                        <CommandGroup heading="Suggestions from database">
+                          {filteredSuggestions.map((suggestion) => (
+                            <CommandItem
+                              key={suggestion.Food_Item}
+                              value={suggestion.Food_Item}
+                              onSelect={() => {
+                                setCustomItem(suggestion.Food_Item);
+                                handleSelectSuggestion(suggestion);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">{suggestion.Food_Item}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {suggestion.Category} • {Math.round(suggestion["Calories (kcal)"])} cal • 
+                                  P: {suggestion["Protein (g)"].toFixed(1)}g • 
+                                  C: {suggestion["Carbohydrates (g)"].toFixed(1)}g • 
+                                  F: {suggestion["Fat (g)"].toFixed(1)}g
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                )}
+              </Popover>
+            </div>
             <Input
               type="number"
-              placeholder="Qty"
+              placeholder="Qty (g)"
               value={customQuantity}
               onChange={(e) => setCustomQuantity(e.target.value)}
               className="w-24"
@@ -551,6 +704,9 @@ const InventorySetup = () => {
               <Plus className="w-4 h-4" />
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Type to search {nutritionDataset.length.toLocaleString()} food items with nutritional data
+          </p>
         </Card>
 
         <div className="flex justify-between">
