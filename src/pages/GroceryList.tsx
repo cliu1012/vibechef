@@ -193,15 +193,54 @@ const GroceryList = () => {
   };
 
   const toggleItem = async (id: string, checked: boolean) => {
-    const { error } = await supabase
-      .from("grocery_list")
-      .update({ checked: !checked })
-      .eq("id", id);
+    if (!user) return;
 
-    if (error) {
-      toast.error("Failed to update item");
-    } else {
+    // If unchecking, just update the checkbox
+    if (checked) {
+      const { error } = await supabase
+        .from("grocery_list")
+        .update({ checked: false })
+        .eq("id", id);
+
+      if (error) {
+        toast.error("Failed to update item");
+      } else {
+        loadGroceryList();
+      }
+      return;
+    }
+
+    // If checking, add to inventory first
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+
+    try {
+      // Add to inventory
+      const { error: inventoryError } = await supabase
+        .from("user_inventory")
+        .insert({
+          user_id: user.id,
+          custom_name: item.item_name,
+          quantity: item.quantity,
+          unit: item.unit,
+          location: "pantry", // Default to pantry
+        });
+
+      if (inventoryError) throw inventoryError;
+
+      // Mark as checked
+      const { error: updateError } = await supabase
+        .from("grocery_list")
+        .update({ checked: true })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      toast.success(`${item.item_name} added to inventory`);
       loadGroceryList();
+    } catch (error) {
+      console.error("Error adding to inventory:", error);
+      toast.error("Failed to add item to inventory");
     }
   };
 
@@ -240,6 +279,50 @@ const GroceryList = () => {
     }
   };
 
+  const purchaseAllItems = async () => {
+    if (!user) return;
+    
+    if (uncheckedItems.length === 0) {
+      toast.info("No items to purchase");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Add all unchecked items to inventory
+      const inventoryItems = uncheckedItems.map((item) => ({
+        user_id: user.id,
+        custom_name: item.item_name,
+        quantity: item.quantity,
+        unit: item.unit,
+        location: "pantry", // Default to pantry
+      }));
+
+      const { error: inventoryError } = await supabase
+        .from("user_inventory")
+        .insert(inventoryItems);
+
+      if (inventoryError) throw inventoryError;
+
+      // Mark all as checked
+      const uncheckedIds = uncheckedItems.map((item) => item.id);
+      const { error: updateError } = await supabase
+        .from("grocery_list")
+        .update({ checked: true })
+        .in("id", uncheckedIds);
+
+      if (updateError) throw updateError;
+
+      toast.success(`${uncheckedItems.length} items added to inventory`);
+      loadGroceryList();
+    } catch (error) {
+      console.error("Error purchasing all items:", error);
+      toast.error("Failed to add items to inventory");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const uncheckedItems = items.filter((item) => !item.checked);
   const checkedItems = items.filter((item) => item.checked);
 
@@ -253,7 +336,7 @@ const GroceryList = () => {
         <BackButton />
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">
                 My Grocery List
@@ -262,16 +345,28 @@ const GroceryList = () => {
                 {uncheckedItems.length} items to buy
               </p>
             </div>
-            {checkedItems.length > 0 && (
-              <Button
-                onClick={clearChecked}
-                variant="outline"
-                disabled={loading}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Clear Checked
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {uncheckedItems.length > 0 && (
+                <Button
+                  onClick={purchaseAllItems}
+                  className="bg-gradient-to-r from-primary to-accent"
+                  disabled={loading}
+                >
+                  <CheckCheck className="w-4 h-4 mr-2" />
+                  Purchased All
+                </Button>
+              )}
+              {checkedItems.length > 0 && (
+                <Button
+                  onClick={clearChecked}
+                  variant="outline"
+                  disabled={loading}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear Checked
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
