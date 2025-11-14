@@ -416,17 +416,18 @@ const Recipes = () => {
                   </div>
                 )}
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex-col gap-2">
                 <Button
-                  className="w-full"
+                  className="w-full bg-gradient-to-r from-primary to-accent"
+                  size="lg"
                   onClick={() => {
                     setCompletingRecipe(selectedRecipe);
                     setSelectedRecipe(null);
                     setCompletionDialogOpen(true);
                   }}
                 >
-                  <Check className="w-4 h-4 mr-2" />
-                  I Cooked This Just Now
+                  <Check className="w-5 h-5 mr-2" />
+                  I Made It!
                 </Button>
               </DialogFooter>
             </>
