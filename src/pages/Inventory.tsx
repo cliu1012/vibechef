@@ -4,6 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import BackButton from "@/components/BackButton";
 import {
   Plus,
@@ -13,6 +28,8 @@ import {
   Snowflake,
   AlertCircle,
   ScanBarcode,
+  Trash2,
+  Edit,
 } from "lucide-react";
 
 interface InventoryItem {
@@ -28,9 +45,11 @@ interface InventoryItem {
 const Inventory = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
   // Mock inventory data
-  const [items] = useState<InventoryItem[]>([
+  const [items, setItems] = useState<InventoryItem[]>([
     {
       id: "1",
       name: "Chicken Breast",
@@ -102,6 +121,27 @@ const Inventory = () => {
     const matchesTab = activeTab === "all" || item.location === activeTab;
     return matchesSearch && matchesTab;
   });
+
+  const handleEdit = (item: InventoryItem) => {
+    setEditingItem(item);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingItem) {
+      setItems(items.map((item) => (item.id === editingItem.id ? editingItem : item)));
+      setEditDialogOpen(false);
+      setEditingItem(null);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    setItems(items.filter((item) => item.id !== id));
+  };
+
+  const handleStatusChange = (id: string, status: InventoryItem["status"]) => {
+    setItems(items.map((item) => (item.id === id ? { ...item, status } : item)));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
@@ -195,15 +235,94 @@ const Inventory = () => {
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    Edit
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(item)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))
           )}
         </div>
       </div>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Item - {editingItem?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                value={editingItem?.quantity || ""}
+                onChange={(e) =>
+                  setEditingItem(
+                    editingItem
+                      ? { ...editingItem, quantity: parseFloat(e.target.value) }
+                      : null
+                  )
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="expiresAt">Expiry Date</Label>
+              <Input
+                id="expiresAt"
+                type="date"
+                value={editingItem?.expiresAt || ""}
+                onChange={(e) =>
+                  setEditingItem(
+                    editingItem
+                      ? { ...editingItem, expiresAt: e.target.value }
+                      : null
+                  )
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={editingItem?.status}
+                onValueChange={(value: InventoryItem["status"]) =>
+                  setEditingItem(
+                    editingItem ? { ...editingItem, status: value } : null
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in-stock">In Stock</SelectItem>
+                  <SelectItem value="low">Low Stock</SelectItem>
+                  <SelectItem value="expiring">Expiring Soon</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
