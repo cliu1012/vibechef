@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -83,10 +84,10 @@ const COMMON_UNITS = ["serving", "g", "oz", "cup", "tbsp", "tsp", "piece", "lb",
 
 const Inventory = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -300,52 +301,6 @@ const Inventory = () => {
     }
   };
 
-  const handleAddItem = async () => {
-    if (!customItem.trim() || !customQuantity || !user) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-
-    const foodItem = foodDatabase.find(
-      (item) => item.food.toLowerCase() === customItem.toLowerCase()
-    );
-
-    const { error } = await supabase
-      .from("user_inventory")
-      .insert({
-        user_id: user.id,
-        custom_name: customItem,
-        quantity: parseFloat(customQuantity),
-        unit: customUnit,
-        location: selectedLocation,
-        status: "in-stock",
-        calories: foodItem?.["Caloric Value"] || null,
-        protein_g: foodItem?.Protein || null,
-        carbs_g: foodItem?.Carbohydrates || null,
-        fat_g: foodItem?.Fat || null,
-        fiber_g: foodItem?.["Dietary Fiber"] || null,
-      });
-
-    if (error) {
-      toast.error("Failed to add item");
-      console.error(error);
-    } else {
-      toast.success("Item added successfully!");
-      setPreferredUnit(customUnit);
-      await loadInventory();
-      setAddDialogOpen(false);
-      setCustomItem("");
-      setCustomQuantity("1");
-      setCustomUnit(getPreferredUnit());
-      setSelectedLocation("fridge");
-    }
-  };
-
-  const handleSelectSuggestion = (suggestion: FoodDatasetItem) => {
-    setCustomItem(suggestion.food);
-    setOpenAutocomplete(false);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -371,7 +326,7 @@ const Inventory = () => {
           </div>
           <Button 
             className="bg-gradient-to-r from-primary to-accent"
-            onClick={() => setAddDialogOpen(true)}
+            onClick={() => navigate('/inventory-setup')}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Item
@@ -404,7 +359,7 @@ const Inventory = () => {
               </p>
               <Button 
                 className="bg-gradient-to-r from-primary to-accent"
-                onClick={() => setAddDialogOpen(true)}
+                onClick={() => navigate('/inventory-setup')}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Your First Item
@@ -506,115 +461,6 @@ const Inventory = () => {
           )}
         </div>
       </div>
-
-      {/* Add Item Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New Item</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="itemName">Item Name</Label>
-              <div className="relative">
-                <Input
-                  id="itemName"
-                  placeholder="Start typing for suggestions..."
-                  value={customItem}
-                  onChange={(e) => {
-                    setCustomItem(e.target.value);
-                    setOpenAutocomplete(true);
-                  }}
-                  onFocus={() => setOpenAutocomplete(true)}
-                  onBlur={() => setTimeout(() => setOpenAutocomplete(false), 200)}
-                />
-                {openAutocomplete && filteredSuggestions.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-auto">
-                    <div className="p-2 space-y-1">
-                      {filteredSuggestions.map((suggestion) => (
-                        <div
-                          key={suggestion.food}
-                          className="p-2 hover:bg-accent rounded-md cursor-pointer"
-                          onClick={() => handleSelectSuggestion(suggestion)}
-                        >
-                          <div className="font-medium">{suggestion.food}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {Math.round(suggestion["Caloric Value"])} cal • 
-                            P: {suggestion.Protein.toFixed(1)}g • 
-                            C: {suggestion.Carbohydrates.toFixed(1)}g • 
-                            F: {suggestion.Fat.toFixed(1)}g
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Type to search {foodDatabase.length.toLocaleString()} food items
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="w-3 h-3 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p>Start with 1 and choose your preferred unit. Your unit preference will be remembered for next time!</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <Input
-                  id="quantity"
-                  type="number"
-                  step="0.1"
-                  placeholder="1"
-                  value={customQuantity}
-                  onChange={(e) => setCustomQuantity(e.target.value)}
-                  className="bg-primary/5 border-primary/20 font-medium"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="unit">Unit</Label>
-                <Select value={customUnit} onValueChange={setCustomUnit}>
-                  <SelectTrigger id="unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border border-border z-50">
-                    {COMMON_UNITS.map((unit) => (
-                      <SelectItem key={unit} value={unit}>
-                        {unit}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="location">Location</Label>
-              <Select value={selectedLocation} onValueChange={(value: "fridge" | "freezer" | "pantry") => setSelectedLocation(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background border border-border z-50">
-                  <SelectItem value="fridge">Fridge</SelectItem>
-                  <SelectItem value="freezer">Freezer</SelectItem>
-                  <SelectItem value="pantry">Pantry</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddItem}>Add Item</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Edit Item Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
