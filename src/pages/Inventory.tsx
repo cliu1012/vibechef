@@ -22,7 +22,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import BackButton from "@/components/BackButton";
+import Papa from "papaparse";
 import {
   Plus,
   Search,
@@ -45,20 +58,87 @@ interface InventoryItem {
   expiresAt?: string;
 }
 
+interface FoodDatasetItem {
+  food: string;
+  "Caloric Value": number;
+  Protein: number;
+  Carbohydrates: number;
+  Fat: number;
+  "Dietary Fiber": number;
+}
+
 const Inventory = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [foodDatabase, setFoodDatabase] = useState<FoodDatasetItem[]>([]);
+  const [customItem, setCustomItem] = useState("");
+  const [customQuantity, setCustomQuantity] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState<"fridge" | "freezer" | "pantry">("fridge");
+  const [openAutocomplete, setOpenAutocomplete] = useState(false);
 
   useEffect(() => {
     if (user) {
       loadInventory();
     }
+    loadFoodDatabase();
   }, [user]);
+
+  const loadFoodDatabase = async () => {
+    const datasets = [
+      "/src/assets/data/FOOD-DATA-GROUP1.csv",
+      "/src/assets/data/FOOD-DATA-GROUP2.csv",
+      "/src/assets/data/FOOD-DATA-GROUP3.csv",
+      "/src/assets/data/FOOD-DATA-GROUP4.csv",
+      "/src/assets/data/FOOD-DATA-GROUP5.csv",
+    ];
+
+    try {
+      const allData = await Promise.all(
+        datasets.map(async (url) => {
+          const response = await fetch(url);
+          const csvText = await response.text();
+          return new Promise<FoodDatasetItem[]>((resolve) => {
+            Papa.parse(csvText, {
+              header: true,
+              dynamicTyping: true,
+              skipEmptyLines: true,
+              complete: (results) => {
+                const items = (results.data as any[])
+                  .filter((item) => item.food)
+                  .map((item) => ({
+                    food: item.food,
+                    "Caloric Value": parseFloat(item["Caloric Value"]) || 0,
+                    Protein: parseFloat(item.Protein) || 0,
+                    Carbohydrates: parseFloat(item.Carbohydrates) || 0,
+                    Fat: parseFloat(item.Fat) || 0,
+                    "Dietary Fiber": parseFloat(item["Dietary Fiber"]) || 0,
+                  }));
+                resolve(items);
+              },
+            });
+          });
+        })
+      );
+      const combinedData = allData.flat();
+      setFoodDatabase(combinedData);
+    } catch (error) {
+      console.error("Error loading food database:", error);
+    }
+  };
+
+  const filteredSuggestions = customItem.trim().length > 0
+    ? foodDatabase
+        .filter((item) =>
+          item.food.toLowerCase().includes(customItem.toLowerCase())
+        )
+        .slice(0, 10)
+    : [];
 
   const loadInventory = async () => {
     if (!user) return;
@@ -163,6 +243,50 @@ const Inventory = () => {
     }
   };
 
+  const handleAddItem = async () => {
+    if (!customItem.trim() || !customQuantity || !user) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    const foodItem = foodDatabase.find(
+      (item) => item.food.toLowerCase() === customItem.toLowerCase()
+    );
+
+    const { error } = await supabase
+      .from("user_inventory")
+      .insert({
+        user_id: user.id,
+        custom_name: customItem,
+        quantity: parseFloat(customQuantity),
+        unit: "g",
+        location: selectedLocation,
+        status: "in-stock",
+        calories: foodItem?.["Caloric Value"] || null,
+        protein_g: foodItem?.Protein || null,
+        carbs_g: foodItem?.Carbohydrates || null,
+        fat_g: foodItem?.Fat || null,
+        fiber_g: foodItem?.["Dietary Fiber"] || null,
+      });
+
+    if (error) {
+      toast.error("Failed to add item");
+      console.error(error);
+    } else {
+      toast.success("Item added successfully!");
+      await loadInventory();
+      setAddDialogOpen(false);
+      setCustomItem("");
+      setCustomQuantity("");
+      setSelectedLocation("fridge");
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion: FoodDatasetItem) => {
+    setCustomItem(suggestion.food);
+    setOpenAutocomplete(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -186,7 +310,10 @@ const Inventory = () => {
               className="pl-10"
             />
           </div>
-          <Button className="bg-gradient-to-r from-primary to-accent">
+          <Button 
+            className="bg-gradient-to-r from-primary to-accent"
+            onClick={() => setAddDialogOpen(true)}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Add Item
           </Button>
@@ -216,7 +343,10 @@ const Inventory = () => {
               <p className="text-muted-foreground mb-6">
                 Start adding items to track your inventory
               </p>
-              <Button className="bg-gradient-to-r from-primary to-accent">
+              <Button 
+                className="bg-gradient-to-r from-primary to-accent"
+                onClick={() => setAddDialogOpen(true)}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Your First Item
               </Button>
@@ -278,6 +408,99 @@ const Inventory = () => {
         </div>
       </div>
 
+      {/* Add Item Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Item</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="itemName">Item Name</Label>
+              <Popover open={openAutocomplete} onOpenChange={setOpenAutocomplete}>
+                <PopoverTrigger asChild>
+                  <Input
+                    id="itemName"
+                    placeholder="Start typing for suggestions..."
+                    value={customItem}
+                    onChange={(e) => {
+                      setCustomItem(e.target.value);
+                      setOpenAutocomplete(true);
+                    }}
+                    onFocus={() => setOpenAutocomplete(true)}
+                  />
+                </PopoverTrigger>
+                {filteredSuggestions.length > 0 && (
+                  <PopoverContent 
+                    className="w-[400px] p-0 bg-background border border-border z-50" 
+                    align="start"
+                  >
+                    <Command className="bg-background">
+                      <CommandList>
+                        <CommandEmpty>No food items found.</CommandEmpty>
+                        <CommandGroup heading="Suggestions from database">
+                          {filteredSuggestions.map((suggestion) => (
+                            <CommandItem
+                              key={suggestion.food}
+                              value={suggestion.food}
+                              onSelect={() => handleSelectSuggestion(suggestion)}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">{suggestion.food}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {Math.round(suggestion["Caloric Value"])} cal • 
+                                  P: {suggestion.Protein.toFixed(1)}g • 
+                                  C: {suggestion.Carbohydrates.toFixed(1)}g • 
+                                  F: {suggestion.Fat.toFixed(1)}g
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                )}
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                Type to search {foodDatabase.length.toLocaleString()} food items
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quantity">Quantity (grams)</Label>
+              <Input
+                id="quantity"
+                type="number"
+                placeholder="100"
+                value={customQuantity}
+                onChange={(e) => setCustomQuantity(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="location">Location</Label>
+              <Select value={selectedLocation} onValueChange={(value: "fridge" | "freezer" | "pantry") => setSelectedLocation(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border z-50">
+                  <SelectItem value="fridge">Fridge</SelectItem>
+                  <SelectItem value="freezer">Freezer</SelectItem>
+                  <SelectItem value="pantry">Pantry</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddItem}>Add Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Item Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -327,7 +550,7 @@ const Inventory = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border border-border z-50">
                   <SelectItem value="in-stock">In Stock</SelectItem>
                   <SelectItem value="low">Low Stock</SelectItem>
                   <SelectItem value="expiring">Expiring Soon</SelectItem>
