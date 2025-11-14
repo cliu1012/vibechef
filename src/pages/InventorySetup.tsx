@@ -94,7 +94,11 @@ const InventorySetup = () => {
   };
 
   useEffect(() => {
-    loadFoodDatabase();
+    // Only load food database when component is actually being used
+    const timer = setTimeout(() => {
+      loadFoodDatabase();
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
