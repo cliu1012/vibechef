@@ -160,43 +160,23 @@ const InventorySetup = () => {
   }, [foodDatabase]);
 
   const loadFoodDatabase = async () => {
-    const datasets = [
-      "/src/assets/data/FOOD-DATA-GROUP1.csv",
-      "/src/assets/data/FOOD-DATA-GROUP2.csv",
-      "/src/assets/data/FOOD-DATA-GROUP3.csv",
-      "/src/assets/data/FOOD-DATA-GROUP4.csv",
-      "/src/assets/data/FOOD-DATA-GROUP5.csv",
-    ];
-
     try {
-      const allData = await Promise.all(
-        datasets.map(async (url) => {
-          const response = await fetch(url);
-          const csvText = await response.text();
-          return new Promise<FoodDatasetItem[]>((resolve) => {
-            Papa.parse(csvText, {
-              header: true,
-              dynamicTyping: true,
-              skipEmptyLines: true,
-              complete: (results) => {
-                const items = (results.data as any[])
-                  .filter((item) => item.food)
-                  .map((item) => ({
-                    food: item.food,
-                    "Caloric Value": parseFloat(item["Caloric Value"]) || 0,
-                    Protein: parseFloat(item.Protein) || 0,
-                    Carbohydrates: parseFloat(item.Carbohydrates) || 0,
-                    Fat: parseFloat(item.Fat) || 0,
-                    "Dietary Fiber": parseFloat(item["Dietary Fiber"]) || 0,
-                  }));
-                resolve(items);
-              },
-            });
-          });
-        })
-      );
-      const combinedData = allData.flat();
-      setFoodDatabase(combinedData);
+      const { data, error } = await supabase
+        .from("food_database")
+        .select("name, calories, protein_g, carbs_g, fat_g, fiber_g");
+
+      if (error) throw error;
+
+      const formattedData = (data || []).map((item) => ({
+        food: item.name,
+        "Caloric Value": item.calories || 0,
+        Protein: item.protein_g || 0,
+        Carbohydrates: item.carbs_g || 0,
+        Fat: item.fat_g || 0,
+        "Dietary Fiber": item.fiber_g || 0,
+      }));
+
+      setFoodDatabase(formattedData);
     } catch (error) {
       console.error("Error loading food database:", error);
     }
