@@ -50,7 +50,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -59,7 +59,31 @@ const Auth = () => {
         toast.error(error.message);
       } else {
         toast.success("Signed in successfully!");
-        navigate("/home");
+        
+        // Check onboarding status
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('onboarding_completed')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (!profile || !profile.onboarding_completed) {
+          navigate("/onboarding");
+          return;
+        }
+
+        // Check inventory
+        const { data: inventory } = await supabase
+          .from('user_inventory')
+          .select('id')
+          .eq('user_id', data.user.id)
+          .limit(1);
+
+        if (!inventory || inventory.length === 0) {
+          navigate("/inventory-setup");
+        } else {
+          navigate("/home");
+        }
       }
     } catch (error: any) {
       toast.error(error.message);

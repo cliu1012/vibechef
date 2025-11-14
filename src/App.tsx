@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
+import { useOnboardingFlow } from "./hooks/useOnboardingFlow";
 import Welcome from "./pages/Welcome";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
@@ -21,6 +22,21 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const ProtectedRouteWithOnboarding = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading: authLoading } = useAuth();
+  const { checking } = useOnboardingFlow();
+
+  if (authLoading || checking) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
@@ -51,17 +67,17 @@ const App = () => (
           <Route
             path="/home"
             element={
-              <ProtectedRoute>
+              <ProtectedRouteWithOnboarding>
                 <Home />
-              </ProtectedRoute>
+              </ProtectedRouteWithOnboarding>
             }
           />
           <Route
             path="/inventory"
             element={
-              <ProtectedRoute>
+              <ProtectedRouteWithOnboarding>
                 <Inventory />
-              </ProtectedRoute>
+              </ProtectedRouteWithOnboarding>
             }
           />
           <Route
@@ -75,25 +91,25 @@ const App = () => (
           <Route
             path="/recipes"
             element={
-              <ProtectedRoute>
+              <ProtectedRouteWithOnboarding>
                 <Recipes />
-              </ProtectedRoute>
+              </ProtectedRouteWithOnboarding>
             }
           />
           <Route
             path="/grocery-list"
             element={
-              <ProtectedRoute>
+              <ProtectedRouteWithOnboarding>
                 <GroceryList />
-              </ProtectedRoute>
+              </ProtectedRouteWithOnboarding>
             }
           />
           <Route
             path="/import-recipe"
             element={
-              <ProtectedRoute>
+              <ProtectedRouteWithOnboarding>
                 <ImportRecipe />
-              </ProtectedRoute>
+              </ProtectedRouteWithOnboarding>
             }
           />
           <Route path="*" element={<NotFound />} />
