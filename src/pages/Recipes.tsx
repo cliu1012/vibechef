@@ -130,6 +130,7 @@ const Recipes = () => {
       const { data: recipesData, error: recipesError } = await supabase
         .from('recipes')
         .select('*')
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
       if (recipesError) throw recipesError;
@@ -344,7 +345,7 @@ const Recipes = () => {
           <Tabs defaultValue="catalog" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="catalog">Recipe Catalog ({filteredCSVRecipes.length})</TabsTrigger>
-              <TabsTrigger value="database">My Recipes ({filteredRecipes.length})</TabsTrigger>
+              <TabsTrigger value="database">My Saved Recipes ({filteredRecipes.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="catalog" className="space-y-4">
