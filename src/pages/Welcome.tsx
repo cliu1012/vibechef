@@ -1,9 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ChefHat, ShoppingCart, Leaf } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const Welcome = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Redirect authenticated users to home
+    if (user) {
+      navigate("/home", { replace: true });
+    }
+  }, [user, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
