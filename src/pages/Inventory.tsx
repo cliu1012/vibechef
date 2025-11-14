@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -43,56 +46,47 @@ interface InventoryItem {
 }
 
 const Inventory = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock inventory data
-  const [items, setItems] = useState<InventoryItem[]>([
-    {
-      id: "1",
-      name: "Chicken Breast",
-      quantity: 500,
-      unit: "g",
-      location: "fridge",
-      status: "in-stock",
-      expiresAt: "2025-11-18",
-    },
-    {
-      id: "2",
-      name: "Eggs",
-      quantity: 4,
-      unit: "count",
-      location: "fridge",
-      status: "low",
-    },
-    {
-      id: "3",
-      name: "Frozen Peas",
-      quantity: 300,
-      unit: "g",
-      location: "freezer",
-      status: "in-stock",
-    },
-    {
-      id: "4",
-      name: "Rice",
-      quantity: 1,
-      unit: "kg",
-      location: "pantry",
-      status: "in-stock",
-    },
-    {
-      id: "5",
-      name: "Tomatoes",
-      quantity: 3,
-      unit: "count",
-      location: "fridge",
-      status: "expiring",
-      expiresAt: "2025-11-16",
-    },
-  ]);
+  useEffect(() => {
+    if (user) {
+      loadInventory();
+    }
+  }, [user]);
+
+  const loadInventory = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("user_inventory")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("Failed to load inventory");
+      console.error(error);
+    } else if (data) {
+      const formattedItems: InventoryItem[] = data.map((item) => ({
+        id: item.id,
+        name: item.custom_name || item.food_id || "",
+        quantity: Number(item.quantity),
+        unit: item.unit,
+        location: item.location as "fridge" | "freezer" | "pantry",
+        status: item.status as "in-stock" | "low" | "expiring",
+        expiresAt: item.expires_at || undefined,
+      }));
+      setItems(formattedItems);
+    }
+    setLoading(false);
+  };
 
   const getLocationIcon = (location: string) => {
     switch (location) {
@@ -127,20 +121,46 @@ const Inventory = () => {
     setEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
-    if (editingItem) {
-      setItems(items.map((item) => (item.id === editingItem.id ? editingItem : item)));
+  const handleSaveEdit = async () => {
+    if (!editingItem || !user) return;
+
+    const { error } = await supabase
+      .from("user_inventory")
+      .update({
+        quantity: editingItem.quantity,
+        expires_at: editingItem.expiresAt || null,
+        status: editingItem.status,
+      })
+      .eq("id", editingItem.id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast.error("Failed to update item");
+      console.error(error);
+    } else {
+      toast.success("Item updated successfully!");
+      await loadInventory();
       setEditDialogOpen(false);
       setEditingItem(null);
     }
   };
 
-  const handleDelete = (id: string) => {
-    setItems(items.filter((item) => item.id !== id));
-  };
+  const handleDelete = async (id: string) => {
+    if (!user) return;
 
-  const handleStatusChange = (id: string, status: InventoryItem["status"]) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, status } : item)));
+    const { error } = await supabase
+      .from("user_inventory")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast.error("Failed to delete item");
+      console.error(error);
+    } else {
+      toast.success("Item deleted successfully!");
+      await loadInventory();
+    }
   };
 
   return (

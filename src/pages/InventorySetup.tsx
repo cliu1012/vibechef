@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Plus, Minus, Edit2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -257,6 +260,7 @@ const commonItems = {
 
 const InventorySetup = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState<"fridge" | "freezer" | "pantry">("fridge");
   const [selectedItems, setSelectedItems] = useState<{
     fridge: Item[];
@@ -271,6 +275,19 @@ const InventorySetup = () => {
   const [customQuantity, setCustomQuantity] = useState("");
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadFoodDatabase();
+  }, []);
+
+  const loadFoodDatabase = async () => {
+    const { data } = await supabase.from("food_database").select("*");
+    if (data) {
+      setFoodDatabase(data);
+    }
+  };
 
   const currentItems = commonItems[step];
   const currentSelected = selectedItems[step];
@@ -351,12 +368,59 @@ const InventorySetup = () => {
     }
   };
 
-  const handleNext = () => {
-    if (step === "fridge") setStep("freezer");
-    else if (step === "freezer") setStep("pantry");
-    else {
-      localStorage.setItem("inventory", JSON.stringify(selectedItems));
-      navigate("/home");
+  const handleNext = async () => {
+    if (step === "fridge") {
+      setStep("freezer");
+    } else if (step === "freezer") {
+      setStep("pantry");
+    } else {
+      // Final step - save to database
+      if (!user) return;
+      
+      setLoading(true);
+      try {
+        // Combine all items from all locations
+        const allItems = [
+          ...selectedItems.fridge.map(item => ({ ...item, location: 'fridge' })),
+          ...selectedItems.freezer.map(item => ({ ...item, location: 'freezer' })),
+          ...selectedItems.pantry.map(item => ({ ...item, location: 'pantry' })),
+        ];
+
+        // Save to database
+        const inventoryItems = allItems.map((item) => {
+          const foodItem = foodDatabase.find(f => f.name.toLowerCase() === item.name.toLowerCase());
+          
+          return {
+            user_id: user.id,
+            food_id: foodItem?.id || null,
+            custom_name: foodItem ? null : item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            location: item.location,
+            status: "in-stock",
+            calories: item.calories,
+            protein_g: item.protein,
+            carbs_g: item.carbs,
+            fat_g: item.fat,
+            fiber_g: item.fiber,
+          };
+        });
+
+        const { error } = await supabase.from("user_inventory").insert(inventoryItems);
+
+        if (error) {
+          toast.error("Failed to save inventory");
+          console.error(error);
+        } else {
+          toast.success("Inventory saved successfully!");
+          navigate("/home");
+        }
+      } catch (error) {
+        toast.error("An error occurred");
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -496,8 +560,9 @@ const InventorySetup = () => {
           <Button
             onClick={handleNext}
             className="bg-gradient-to-r from-primary to-accent"
+            disabled={loading}
           >
-            {step === "pantry" ? "Finish Setup" : "Next"}
+            {loading ? "Saving..." : step === "pantry" ? "Finish Setup" : "Next"}
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
