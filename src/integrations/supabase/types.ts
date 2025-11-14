@@ -41,6 +41,38 @@ export type Database = {
         }
         Relationships: []
       }
+      cooked_recipes_log: {
+        Row: {
+          cooked_at: string
+          created_at: string | null
+          id: string
+          recipe_id: string
+          user_id: string
+        }
+        Insert: {
+          cooked_at?: string
+          created_at?: string | null
+          id?: string
+          recipe_id: string
+          user_id: string
+        }
+        Update: {
+          cooked_at?: string
+          created_at?: string | null
+          id?: string
+          recipe_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cooked_recipes_log_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       food_database: {
         Row: {
           calories: number
@@ -228,6 +260,7 @@ export type Database = {
           calories_per_serving: number | null
           cook_time_minutes: number | null
           created_at: string | null
+          cuisine: string | null
           description: string | null
           difficulty: string | null
           id: string
@@ -246,6 +279,7 @@ export type Database = {
           calories_per_serving?: number | null
           cook_time_minutes?: number | null
           created_at?: string | null
+          cuisine?: string | null
           description?: string | null
           difficulty?: string | null
           id?: string
@@ -264,6 +298,7 @@ export type Database = {
           calories_per_serving?: number | null
           cook_time_minutes?: number | null
           created_at?: string | null
+          cuisine?: string | null
           description?: string | null
           difficulty?: string | null
           id?: string

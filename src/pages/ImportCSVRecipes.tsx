@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle, XCircle, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import BackButton from "@/components/BackButton";
+import { Upload, CheckCircle, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import Papa from "papaparse";
+import recipesCSV from "@/assets/data/recipes_50_with_steps.csv?raw";
 
 interface CSVRecipe {
   recipe_name: string;
@@ -17,222 +17,188 @@ interface CSVRecipe {
   ingredients: string;
   calory: string;
   nutrition_values: string;
+  steps: string;
 }
 
 const ImportCSVRecipes = () => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
 
-  const parseNutritionValues = (nutritionStr: string) => {
-    const proteinMatch = nutritionStr.match(/Protein\s+([\d.]+)\s*g/i);
-    const carbsMatch = nutritionStr.match(/Carbohydrates\s+([\d.]+)\s*g/i);
-    const fatMatch = nutritionStr.match(/Fat\s+([\d.]+)\s*g/i);
-
-    return {
-      protein: proteinMatch ? parseFloat(proteinMatch[1]) : null,
-      carbs: carbsMatch ? parseFloat(carbsMatch[1]) : null,
-      fat: fatMatch ? parseFloat(fatMatch[1]) : null,
-    };
+  const createSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
   };
 
   const importRecipes = async () => {
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+    setImporting(true);
+    setProgress(0);
+    setStatus("idle");
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        setError("You must be logged in to import recipes");
-        return;
-      }
-
-      // Fetch the CSV file
-      const response = await fetch('/src/assets/data/recipes_50_generated.csv');
-      const csvText = await response.text();
-
       // Parse CSV
-      const parsed = await new Promise<CSVRecipe[]>((resolve, reject) => {
-        Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => resolve(results.data as CSVRecipe[]),
-          error: (error) => reject(error)
-        });
+      const result = Papa.parse<CSVRecipe>(recipesCSV, {
+        header: true,
+        skipEmptyLines: true,
       });
 
-      console.log(`Parsed ${parsed.length} recipes from CSV`);
+      if (result.errors.length > 0) {
+        throw new Error("Failed to parse CSV");
+      }
 
-      let importedCount = 0;
-      const errors: string[] = [];
+      const recipes = result.data;
+      setProgress(10);
 
-      // Import each recipe
-      for (const csvRecipe of parsed) {
-        try {
-          const nutrition = parseNutritionValues(csvRecipe.nutrition_values);
-          const calories = parseInt(csvRecipe.calory);
-          const totalTime = parseInt(csvRecipe.time_to_cook_min);
+      // Clear existing recipes
+      setMessage("Clearing existing recipes...");
+      const { error: deleteError } = await supabase
+        .from("recipes")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
 
-          // Insert recipe
-          const { data: recipe, error: recipeError } = await supabase
-            .from('recipes')
-            .insert({
-              title: csvRecipe.recipe_name,
-              description: `A delicious ${csvRecipe.cuisine} dish`,
-              servings: 4,
-              total_time_minutes: totalTime,
-              difficulty: csvRecipe.difficulty.toLowerCase(),
-              calories_per_serving: calories,
-              source: 'csv_import',
-            })
-            .select()
-            .single();
+      if (deleteError) throw deleteError;
+      setProgress(20);
 
-          if (recipeError) {
-            errors.push(`Failed to import ${csvRecipe.recipe_name}: ${recipeError.message}`);
-            continue;
-          }
+      // Import recipes
+      setMessage("Importing recipes...");
+      const totalRecipes = recipes.length;
 
-          // Insert ingredients
-          const ingredients = csvRecipe.ingredients
-            .split(';')
-            .map(ing => ing.trim())
-            .filter(ing => ing.length > 0);
+      for (let i = 0; i < recipes.length; i++) {
+        const recipe = recipes[i];
+        const slug = createSlug(recipe.recipe_name);
 
-          const ingredientRows = ingredients.map(ing => ({
-            recipe_id: recipe.id,
-            raw_text: ing,
-          }));
+        // Insert recipe
+        const { data: recipeData, error: recipeError} = await supabase
+          .from("recipes")
+          .insert({
+            title: recipe.recipe_name,
+            cuisine: recipe.cuisine,
+            total_time_minutes: parseInt(recipe.time_to_cook_min) || null,
+            difficulty: recipe.difficulty,
+            calories_per_serving: parseInt(recipe.calory) || null,
+            description: recipe.nutrition_values,
+            steps: recipe.steps.split("|").map((s) => s.trim()),
+            image_url: `/images/${slug}.jpg`,
+            source: "csv_import",
+          })
+          .select()
+          .single();
 
-          if (ingredientRows.length > 0) {
-            const { error: ingredientsError } = await supabase
-              .from('recipe_ingredients')
-              .insert(ingredientRows);
-
-            if (ingredientsError) {
-              console.error(`Error inserting ingredients for ${csvRecipe.recipe_name}:`, ingredientsError);
-            }
-          }
-
-          // Insert tags
-          const tags = [
-            csvRecipe.cuisine.toLowerCase(),
-            csvRecipe.difficulty.toLowerCase(),
-          ];
-
-          if (totalTime <= 30) tags.push('quick');
-          if (nutrition.protein && nutrition.protein > 30) tags.push('high protein');
-
-          const tagRows = tags.map(tag => ({
-            recipe_id: recipe.id,
-            tag,
-          }));
-
-          const { error: tagsError } = await supabase
-            .from('recipe_tags')
-            .insert(tagRows);
-
-          if (tagsError) {
-            console.error(`Error inserting tags for ${csvRecipe.recipe_name}:`, tagsError);
-          }
-
-          importedCount++;
-        } catch (err: any) {
-          errors.push(`Error processing ${csvRecipe.recipe_name}: ${err.message}`);
+        if (recipeError) {
+          console.error("Error importing recipe:", recipe.recipe_name, recipeError);
+          continue;
         }
+
+        // Insert ingredients
+        const ingredients = recipe.ingredients
+          .split(";")
+          .map((ing) => ing.trim())
+          .filter((ing) => ing.length > 0);
+
+        for (const ingredient of ingredients) {
+          await supabase.from("recipe_ingredients").insert({
+            recipe_id: recipeData.id,
+            raw_text: ingredient,
+          });
+        }
+
+        // Update progress
+        const currentProgress = 20 + ((i + 1) / totalRecipes) * 70;
+        setProgress(currentProgress);
+        setMessage(`Imported ${i + 1} of ${totalRecipes} recipes...`);
       }
 
-      if (errors.length > 0) {
-        console.error('Import errors:', errors);
-      }
-
-      setSuccess(importedCount);
-      toast.success(`Successfully imported ${importedCount} recipes!`);
-      
-    } catch (err: any) {
-      console.error('Import error:', err);
-      setError(err.message || 'Failed to import recipes');
-      toast.error('Failed to import recipes');
+      setProgress(100);
+      setStatus("success");
+      setMessage(`Successfully imported ${totalRecipes} recipes!`);
+      toast.success(`Imported ${totalRecipes} recipes`);
+    } catch (error) {
+      console.error("Import error:", error);
+      setStatus("error");
+      setMessage("Failed to import recipes");
+      toast.error("Failed to import recipes");
     } finally {
-      setLoading(false);
+      setImporting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
         <BackButton />
-        
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-2xl">Import CSV Recipes</CardTitle>
-            <CardDescription>
-              Import 50 pre-generated recipes from the CSV file into your database.
-              This will add recipes with ingredients and tags.
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-4">
-              <Button 
-                onClick={importRecipes} 
-                disabled={loading}
-                size="lg"
-                className="w-full"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Importing recipes...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Import 50 Recipes
-                  </>
-                )}
-              </Button>
 
-              {error && (
-                <Alert variant="destructive">
-                  <XCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Import Recipes from CSV
+          </h1>
+          <p className="text-muted-foreground">
+            Import 50 recipes from the uploaded CSV file
+          </p>
+        </div>
+
+        <Card className="p-6">
+          <div className="space-y-6">
+            <div className="flex items-center justify-center py-8">
+              {status === "idle" && (
+                <Upload className="w-16 h-16 text-muted-foreground" />
               )}
-
-              {success !== null && (
-                <Alert className="border-success bg-success/10">
-                  <CheckCircle className="h-4 w-4 text-success" />
-                  <AlertDescription className="text-success">
-                    Successfully imported <strong>{success}</strong> recipes!
-                  </AlertDescription>
-                </Alert>
+              {status === "success" && (
+                <CheckCircle className="w-16 h-16 text-green-500" />
+              )}
+              {status === "error" && (
+                <AlertCircle className="w-16 h-16 text-destructive" />
               )}
             </div>
 
-            <div className="pt-4 border-t">
-              <h3 className="font-semibold mb-2">What will be imported:</h3>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>50 recipes from various cuisines (Turkish, Italian, Mexican, Indian, etc.)</li>
-                <li>Recipe details: cooking time, difficulty, calories</li>
-                <li>Ingredients for each recipe</li>
-                <li>Tags based on cuisine, difficulty, and characteristics</li>
+            {importing && (
+              <div className="space-y-2">
+                <Progress value={progress} />
+                <p className="text-sm text-muted-foreground text-center">
+                  {message}
+                </p>
+              </div>
+            )}
+
+            {!importing && status !== "idle" && (
+              <p className="text-center text-foreground font-medium">
+                {message}
+              </p>
+            )}
+
+            <div className="space-y-4">
+              <Button
+                onClick={importRecipes}
+                disabled={importing}
+                className="w-full bg-gradient-to-r from-primary to-accent"
+                size="lg"
+              >
+                {importing ? "Importing..." : "Import Recipes"}
+              </Button>
+
+              {status === "success" && (
+                <Button
+                  onClick={() => (window.location.href = "/recipes")}
+                  variant="outline"
+                  className="w-full"
+                >
+                  View Recipes
+                </Button>
+              )}
+            </div>
+
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>This will:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Clear all existing recipes</li>
+                <li>Import 50 new recipes from the CSV</li>
+                <li>Create recipe ingredients for each recipe</li>
+                <li>Generate image URLs based on recipe names</li>
               </ul>
             </div>
-
-            <div className="pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => navigate('/recipes')}
-                className="w-full"
-              >
-                View Recipes
-              </Button>
-            </div>
-          </CardContent>
+          </div>
         </Card>
       </div>
     </div>

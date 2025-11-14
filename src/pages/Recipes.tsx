@@ -426,7 +426,7 @@ const Recipes = () => {
                   }}
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  Mark as Complete
+                  I Cooked This Just Now
                 </Button>
               </DialogFooter>
             </>
