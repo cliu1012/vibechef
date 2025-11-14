@@ -111,8 +111,7 @@ const InventorySetup = () => {
 
       if (error) throw error;
 
-      // Wait for food database to be loaded
-      // We'll match common items with food database after both are loaded
+      // Group by category and include image URLs
       setCommonItems((prev) => {
         const grouped = { fridge: [], freezer: [], pantry: [] } as any;
         data?.forEach((item) => {
@@ -121,7 +120,8 @@ const InventorySetup = () => {
             name: item.food_name,
             quantity: 1,
             unit: "g",
-            image: "📦",
+            image: item.image_url || "📦", // Use stored image or fallback to emoji
+            id: item.id, // Store ID to update image later
           });
         });
         return grouped;
@@ -433,13 +433,21 @@ const InventorySetup = () => {
                 onClick={() => handleItemToggle(item)}
               >
                 <div className="flex items-start gap-2 mb-2">
-                  <span className="text-2xl">{item.image}</span>
+                  {item.image?.startsWith('data:image') || item.image?.startsWith('http') ? (
+                    <img 
+                      src={item.image} 
+                      alt={item.name}
+                      className="w-12 h-12 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <span className="text-2xl">{item.image || "📦"}</span>
+                  )}
                   <div className="flex-1">
                     <div className="font-medium text-foreground">
                       {item.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {item.calories} cal • P:{item.protein}g • C:{item.carbs}g
+                      {item.calories ? `${Math.round(item.calories)} cal • P:${item.protein}g • C:${item.carbs}g` : 'Loading nutrition...'}
                     </div>
                   </div>
                   {selected && (
