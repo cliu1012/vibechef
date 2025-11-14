@@ -539,6 +539,86 @@ const Recipes = () => {
                   </ul>
                 </div>
               </div>
+              <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
+                <Button
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  size="lg"
+                  onClick={async () => {
+                    if (!selectedCSVRecipe) return;
+                    
+                    try {
+                      // First, save the CSV recipe to database
+                      const { data: recipe, error: recipeError } = await supabase
+                        .from('recipes')
+                        .insert({
+                          title: selectedCSVRecipe.recipe_name,
+                          cuisine: selectedCSVRecipe.cuisine,
+                          difficulty: selectedCSVRecipe.difficulty,
+                          total_time_minutes: parseInt(selectedCSVRecipe.time_to_cook_min),
+                          steps: selectedCSVRecipe.steps.split('|').map(s => s.trim()),
+                        })
+                        .select()
+                        .single();
+
+                      if (recipeError) throw recipeError;
+
+                      // Save ingredients
+                      const ingredientsToInsert = selectedCSVRecipe.ingredients
+                        .split(';')
+                        .map(ing => ({
+                          recipe_id: recipe.id,
+                          raw_text: ing.trim(),
+                        }));
+
+                      const { error: ingredientsError } = await supabase
+                        .from('recipe_ingredients')
+                        .insert(ingredientsToInsert);
+
+                      if (ingredientsError) throw ingredientsError;
+
+                      // Save cuisine as tag
+                      await supabase
+                        .from('recipe_tags')
+                        .insert({
+                          recipe_id: recipe.id,
+                          tag: selectedCSVRecipe.cuisine,
+                        });
+
+                      // Fetch the complete recipe with ingredients
+                      const { data: completeRecipe } = await supabase
+                        .from('recipes')
+                        .select('*, recipe_ingredients(*)')
+                        .eq('id', recipe.id)
+                        .single();
+
+                      if (completeRecipe) {
+                        const formattedRecipe: Recipe = {
+                          ...completeRecipe,
+                          steps: Array.isArray(completeRecipe.steps) ? (completeRecipe.steps as string[]) : null,
+                          tags: [selectedCSVRecipe.cuisine],
+                          ingredients: completeRecipe.recipe_ingredients || [],
+                        };
+                        
+                        const recipeWithMatch: RecipeWithMatch = {
+                          ...formattedRecipe,
+                          ingredientMatch: calculateIngredientMatch(formattedRecipe),
+                        };
+                        
+                        setCompletingRecipe(recipeWithMatch);
+                        setSelectedCSVRecipe(null);
+                        setCompletionDialogOpen(true);
+                        await loadRecipes(); // Refresh recipes list
+                      }
+                    } catch (error) {
+                      console.error("Error saving recipe:", error);
+                      toast.error("Failed to save recipe");
+                    }
+                  }}
+                >
+                  <Check className="w-5 h-5 mr-2" />
+                  I Made It!
+                </Button>
+              </DialogFooter>
             </>
           )}
         </DialogContent>
