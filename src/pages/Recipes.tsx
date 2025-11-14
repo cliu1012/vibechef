@@ -70,6 +70,30 @@ const Recipes = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeWithMatch | null>(null);
   const [loading, setLoading] = useState(false);
+  const [userAllergies, setUserAllergies] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      loadInventory();
+      loadUserAllergies();
+    }
+  }, [user]);
+
+  const loadUserAllergies = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('allergies')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error("Error loading allergies:", error);
+    } else if (data) {
+      setUserAllergies(data.allergies || []);
+    }
+  };
 
   // Mock recipe data with ingredients
   const recipes: Recipe[] = [
@@ -125,10 +149,6 @@ const Recipes = () => {
       ],
     },
   ];
-
-  useEffect(() => {
-    loadInventory();
-  }, [user]);
 
   const loadInventory = async () => {
     if (!user) return;
@@ -224,9 +244,23 @@ const Recipes = () => {
     ingredientMatch: calculateIngredientMatch(recipe),
   }));
 
-  const filteredRecipes = recipesWithMatch.filter((recipe) =>
-    recipe.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter out recipes with allergens
+  const hasAllergen = (recipe: Recipe): boolean => {
+    if (userAllergies.length === 0) return false;
+    
+    return recipe.ingredients.some(ingredient => 
+      userAllergies.some(allergy => 
+        ingredient.name.toLowerCase().includes(allergy.toLowerCase()) ||
+        allergy.toLowerCase().includes(ingredient.name.toLowerCase())
+      )
+    );
+  };
+
+  const filteredRecipes = recipesWithMatch
+    .filter((recipe) => !hasAllergen(recipe)) // Exclude recipes with allergens
+    .filter((recipe) =>
+      recipe.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   const getDifficultyColor = (difficulty: string) => {
     const colors = {
