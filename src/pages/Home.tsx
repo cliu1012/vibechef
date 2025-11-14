@@ -106,6 +106,7 @@ const Home = () => {
       const { data: recipesData, error: recipesError } = await supabase
         .from("recipes")
         .select("*")
+        .eq("user_id", user?.id)
         .order("created_at", { ascending: false })
         .limit(6);
 
@@ -344,7 +345,7 @@ const Home = () => {
         {/* Recipe Suggestions */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-xl text-foreground">Recipes You Can Make</h3>
+            <h3 className="font-semibold text-xl text-foreground">Your Saved Recipes</h3>
             <Button variant="ghost" onClick={() => navigate("/recipes")}>
               View All
             </Button>
@@ -404,9 +405,9 @@ const Home = () => {
           ) : (
             <Card className="p-12 text-center">
               <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold text-lg text-foreground mb-2">No recipes yet</h3>
-              <p className="text-muted-foreground mb-4">Import recipes to get started</p>
-              <Button onClick={() => navigate("/import-csv-recipes")}>Import Recipes</Button>
+              <h3 className="font-semibold text-lg text-foreground mb-2">No saved recipes yet</h3>
+              <p className="text-muted-foreground mb-4">Explore our recipe catalog and save your favorites</p>
+              <Button onClick={() => navigate("/recipes")}>Browse Recipes</Button>
             </Card>
           )}
         </div>
