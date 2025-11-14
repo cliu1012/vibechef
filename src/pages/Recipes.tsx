@@ -8,11 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search,
   Clock,
-  ChefHat,
-  ShoppingCart,
   CheckCircle2,
-  ExternalLink,
-  Settings,
   Filter,
   Check,
   AlertCircle,
@@ -22,9 +18,7 @@ import Papa from "papaparse";
 import recipesCSV from "@/assets/data/recipes_mvop.csv?raw";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminCheck } from "@/hooks/useAdminCheck";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -89,8 +83,6 @@ interface CSVRecipe {
 
 const Recipes = () => {
   const { user } = useAuth();
-  const { isAdmin } = useAdminCheck();
-  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -283,26 +275,6 @@ const Recipes = () => {
       <div className="max-w-6xl mx-auto p-4">
         <div className="flex items-center justify-between mb-6">
           <BackButton />
-          {isAdmin && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/import-recipe')}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Import from MyPlate
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/import-csv-recipes')}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Import CSV Recipes
-              </Button>
-            </div>
-          )}
         </div>
 
         <div className="space-y-6">
