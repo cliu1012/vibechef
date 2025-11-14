@@ -83,6 +83,45 @@ export type Database = {
         }
         Relationships: []
       }
+      grocery_list: {
+        Row: {
+          checked: boolean | null
+          created_at: string | null
+          id: string
+          item_name: string
+          quantity: number | null
+          recipe_id: string | null
+          source: string | null
+          unit: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          checked?: boolean | null
+          created_at?: string | null
+          id?: string
+          item_name: string
+          quantity?: number | null
+          recipe_id?: string | null
+          source?: string | null
+          unit?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          checked?: boolean | null
+          created_at?: string | null
+          id?: string
+          item_name?: string
+          quantity?: number | null
+          recipe_id?: string | null
+          source?: string | null
+          unit?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       recipe_ingredients: {
         Row: {
           created_at: string | null
@@ -127,6 +166,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recipe_ratings: {
+        Row: {
+          created_at: string | null
+          id: string
+          rating: number
+          recipe_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          rating: number
+          recipe_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          rating?: number
+          recipe_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       recipe_tags: {
         Row: {
@@ -211,6 +277,27 @@ export type Database = {
           title?: string
           total_time_minutes?: number | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      saved_recipes: {
+        Row: {
+          created_at: string | null
+          id: string
+          recipe_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          recipe_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          recipe_id?: string
+          user_id?: string
         }
         Relationships: []
       }

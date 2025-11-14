@@ -5,116 +5,240 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import BackButton from "@/components/BackButton";
-import { Plus, ShoppingCart, Trash2, CheckCheck } from "lucide-react";
+import { Plus, ShoppingCart, Trash2, CheckCheck, Star, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import Papa from "papaparse";
 
 interface GroceryItem {
   id: string;
-  name: string;
-  quantity: string;
-  category: string;
+  item_name: string;
+  quantity: number;
+  unit: string;
+  source: string;
+  recipe_id: string | null;
   checked: boolean;
-  recipeId?: string;
-  recipeName?: string;
+}
+
+interface RecommendedItem {
+  name: string;
+  recipe_count: number;
+  missing_percentage: number;
 }
 
 const GroceryList = () => {
   const { user } = useAuth();
   const [newItem, setNewItem] = useState("");
   const [items, setItems] = useState<GroceryItem[]>([]);
-  const [foodDatabase, setFoodDatabase] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendedItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('groceryList');
-    if (stored) {
-      setItems(JSON.parse(stored));
+    if (user) {
+      loadGroceryList();
+      loadRecommendations();
     }
-    loadFoodDatabase();
-  }, []);
+  }, [user]);
 
-  // Save to localStorage whenever items change
-  useEffect(() => {
-    localStorage.setItem('groceryList', JSON.stringify(items));
-  }, [items]);
+  const loadGroceryList = async () => {
+    if (!user) return;
 
-  const loadFoodDatabase = async () => {
-    const datasets = [
-      "/src/assets/data/FOOD-DATA-GROUP1.csv",
-      "/src/assets/data/FOOD-DATA-GROUP2.csv",
-      "/src/assets/data/FOOD-DATA-GROUP3.csv",
-      "/src/assets/data/FOOD-DATA-GROUP4.csv",
-      "/src/assets/data/FOOD-DATA-GROUP5.csv",
-    ];
+    const { data, error } = await supabase
+      .from("grocery_list")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
-    try {
-      const allData = await Promise.all(
-        datasets.map(async (url) => {
-          const response = await fetch(url);
-          const csvText = await response.text();
-          return new Promise<any[]>((resolve) => {
-            Papa.parse(csvText, {
-              header: true,
-              dynamicTyping: true,
-              skipEmptyLines: true,
-              complete: (results) => {
-                resolve(results.data);
-              },
-            });
-          });
-        })
-      );
-      
-      setFoodDatabase(allData.flat());
-    } catch (error) {
-      console.error("Error loading food database:", error);
+    if (error) {
+      console.error("Error loading grocery list:", error);
+      toast.error("Failed to load grocery list");
+    } else {
+      setItems(data || []);
     }
   };
 
-  const addToInventory = async (item: GroceryItem) => {
-    if (!user) {
-      toast.error("Please log in to add items to inventory");
+  const loadRecommendations = async () => {
+    if (!user) return;
+
+    try {
+      // Get user's current inventory
+      const { data: inventory } = await supabase
+        .from("user_inventory")
+        .select("custom_name")
+        .eq("user_id", user.id);
+
+      const inventoryNames = (inventory || []).map((i) => i.custom_name?.toLowerCase());
+
+      // Get all recipes and their ingredients
+      const { data: recipes } = await supabase
+        .from("recipes")
+        .select("id, title, recipe_ingredients(raw_text)");
+
+      if (!recipes) return;
+
+      const recipeAnalysis: { [key: string]: { count: number; total: number } } = {};
+
+      recipes.forEach((recipe) => {
+        const ingredients = recipe.recipe_ingredients || [];
+        const totalIngredients = ingredients.length;
+        let matchingCount = 0;
+
+        ingredients.forEach((ing) => {
+          const ingText = ing.raw_text.toLowerCase();
+          const hasIngredient = inventoryNames.some((name) => 
+            ingText.includes(name) || name.includes(ingText.split(' ')[0])
+          );
+
+          if (hasIngredient) {
+            matchingCount++;
+          } else {
+            // Track missing ingredients
+            const ingredientName = ing.raw_text;
+            if (!recipeAnalysis[ingredientName]) {
+              recipeAnalysis[ingredientName] = { count: 0, total: 0 };
+            }
+            recipeAnalysis[ingredientName].count++;
+            recipeAnalysis[ingredientName].total++;
+          }
+        });
+
+        // Only consider recipes where we have 30-80% of ingredients
+        const matchPercentage = totalIngredients > 0 ? (matchingCount / totalIngredients) * 100 : 0;
+        if (matchPercentage >= 30 && matchPercentage <= 80) {
+          ingredients.forEach((ing) => {
+            const ingText = ing.raw_text.toLowerCase();
+            const hasIngredient = inventoryNames.some((name) =>
+              ingText.includes(name) || name.includes(ingText.split(' ')[0])
+            );
+            if (!hasIngredient && recipeAnalysis[ing.raw_text]) {
+              recipeAnalysis[ing.raw_text].total++;
+            }
+          });
+        }
+      });
+
+      // Convert to recommendations array and sort
+      const recs = Object.entries(recipeAnalysis)
+        .map(([name, data]) => ({
+          name,
+          recipe_count: data.count,
+          missing_percentage: data.total,
+        }))
+        .sort((a, b) => b.recipe_count - a.recipe_count)
+        .slice(0, 5);
+
+      setRecommendations(recs);
+    } catch (error) {
+      console.error("Error loading recommendations:", error);
+    }
+  };
+
+  const addItem = async () => {
+    if (!newItem.trim() || !user) {
+      toast.error("Please enter an item name");
       return;
     }
 
+    setLoading(true);
     try {
-      // Try to find nutrition data
-      const nutritionData = foodDatabase.find(
-        (food) => food.food && food.food.toLowerCase().includes(item.name.toLowerCase())
-      );
-
-      // Determine location based on category or default to pantry
-      let location: "fridge" | "freezer" | "pantry" = "pantry";
-      const categoryLower = item.category.toLowerCase();
-      if (categoryLower.includes("fridge") || categoryLower.includes("dairy") || categoryLower.includes("produce")) {
-        location = "fridge";
-      } else if (categoryLower.includes("freezer") || categoryLower.includes("frozen")) {
-        location = "freezer";
-      }
-
-      // Parse quantity - try to extract numeric value
-      const quantityMatch = item.quantity.match(/[\d.]+/);
-      const quantity = quantityMatch ? parseFloat(quantityMatch[0]) : 1;
-
       const { error } = await supabase
-        .from("user_inventory")
+        .from("grocery_list")
         .insert({
           user_id: user.id,
-          custom_name: item.name,
-          quantity: quantity,
+          item_name: newItem,
+          quantity: 1,
           unit: "serving",
-          location: location,
-          status: "in-stock",
-          calories: nutritionData?.["Caloric Value"] || null,
-          protein_g: nutritionData?.Protein || null,
-          carbs_g: nutritionData?.Carbohydrates || null,
-          fat_g: nutritionData?.Fat || null,
-          fiber_g: nutritionData?.["Dietary Fiber"] || null,
+          source: "manual",
         });
+
+      if (error) throw error;
+
+      toast.success("Item added to grocery list");
+      setNewItem("");
+      loadGroceryList();
+    } catch (error) {
+      console.error("Error adding item:", error);
+      toast.error("Failed to add item");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addRecommendedItem = async (itemName: string) => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("grocery_list")
+        .insert({
+          user_id: user.id,
+          item_name: itemName,
+          quantity: 1,
+          unit: "serving",
+          source: "recommendation",
+        });
+
+      if (error) throw error;
+
+      toast.success("Added to grocery list");
+      loadGroceryList();
+      loadRecommendations();
+    } catch (error) {
+      console.error("Error adding recommendation:", error);
+      toast.error("Failed to add item");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleItem = async (id: string, checked: boolean) => {
+    const { error } = await supabase
+      .from("grocery_list")
+      .update({ checked: !checked })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Failed to update item");
+    } else {
+      loadGroceryList();
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    const { error } = await supabase
+      .from("grocery_list")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete item");
+    } else {
+      toast.success("Item removed");
+      loadGroceryList();
+    }
+  };
+
+  const clearChecked = async () => {
+    const checkedIds = items.filter((item) => item.checked).map((item) => item.id);
+
+    if (checkedIds.length === 0) {
+      toast.info("No items to clear");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("grocery_list")
+      .delete()
+      .in("id", checkedIds);
+
+    if (error) {
+      toast.error("Failed to clear items");
+    } else {
+      toast.success("Checked items cleared");
+      loadGroceryList();
+    }
+  };
 
       if (error) throw error;
     } catch (error) {
