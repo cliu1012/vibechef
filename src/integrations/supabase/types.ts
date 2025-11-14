@@ -290,6 +290,7 @@ export type Database = {
           fat_goal_g: number | null
           fiber_goal_g: number | null
           id: string
+          onboarding_completed: boolean | null
           protein_goal_g: number | null
           updated_at: string | null
         }
@@ -303,6 +304,7 @@ export type Database = {
           fat_goal_g?: number | null
           fiber_goal_g?: number | null
           id: string
+          onboarding_completed?: boolean | null
           protein_goal_g?: number | null
           updated_at?: string | null
         }
@@ -316,6 +318,7 @@ export type Database = {
           fat_goal_g?: number | null
           fiber_goal_g?: number | null
           id?: string
+          onboarding_completed?: boolean | null
           protein_goal_g?: number | null
           updated_at?: string | null
         }

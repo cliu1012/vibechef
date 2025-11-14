@@ -99,6 +99,7 @@ const Onboarding = () => {
           fat_goal_g: preferences.fatGoal ? parseInt(preferences.fatGoal) : null,
           carbs_goal_g: preferences.carbsGoal ? parseInt(preferences.carbsGoal) : null,
           allergies: preferences.allergies,
+          onboarding_completed: true,
         });
 
       if (error) throw error;
