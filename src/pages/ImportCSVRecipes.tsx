@@ -7,7 +7,7 @@ import { Upload, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import Papa from "papaparse";
-import recipesCSV from "@/assets/data/recipes_50_with_steps.csv?raw";
+import recipesCSV from "@/assets/data/recipes_mvop.csv?raw";
 
 interface CSVRecipe {
   recipe_name: string;
@@ -15,8 +15,6 @@ interface CSVRecipe {
   time_to_cook_min: string;
   difficulty: string;
   ingredients: string;
-  calory: string;
-  nutrition_values: string;
   steps: string;
 }
 
@@ -78,8 +76,6 @@ const ImportCSVRecipes = () => {
             cuisine: recipe.cuisine,
             total_time_minutes: parseInt(recipe.time_to_cook_min) || null,
             difficulty: recipe.difficulty,
-            calories_per_serving: parseInt(recipe.calory) || null,
-            description: recipe.nutrition_values,
             steps: recipe.steps.split("|").map((s) => s.trim()),
             image_url: `/images/${slug}.jpg`,
             source: "csv_import",
@@ -134,9 +130,9 @@ const ImportCSVRecipes = () => {
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Import Recipes from CSV
           </h1>
-          <p className="text-muted-foreground">
-            Import 50 recipes from the uploaded CSV file
-          </p>
+            <p className="text-muted-foreground">
+              Import recipes from the uploaded CSV file
+            </p>
         </div>
 
         <Card className="p-6">
@@ -193,7 +189,7 @@ const ImportCSVRecipes = () => {
               <p>This will:</p>
               <ul className="list-disc list-inside space-y-1">
                 <li>Clear all existing recipes</li>
-                <li>Import 50 new recipes from the CSV</li>
+                <li>Import new recipes from the CSV</li>
                 <li>Create recipe ingredients for each recipe</li>
                 <li>Generate image URLs based on recipe names</li>
               </ul>

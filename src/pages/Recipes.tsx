@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search,
   Clock,
-  Flame,
   ChefHat,
   ShoppingCart,
   CheckCircle2,
@@ -20,7 +19,7 @@ import {
   Plus,
 } from "lucide-react";
 import Papa from "papaparse";
-import recipesCSV from "@/assets/data/recipes_display.csv?raw";
+import recipesCSV from "@/assets/data/recipes_mvop.csv?raw";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminCheck } from "@/hooks/useAdminCheck";
@@ -85,8 +84,7 @@ interface CSVRecipe {
   time_to_cook_min: string;
   difficulty: string;
   ingredients: string;
-  calory: string;
-  nutrition_values: string;
+  steps: string;
 }
 
 const Recipes = () => {
@@ -387,10 +385,6 @@ const Recipes = () => {
                             <Clock className="w-4 h-4" />
                             {recipe.time_to_cook_min}m
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Flame className="w-4 h-4" />
-                            {recipe.calory} cal
-                          </div>
                         </div>
                       </div>
                     </Card>
@@ -415,7 +409,6 @@ const Recipes = () => {
                         <h3 className="font-semibold line-clamp-1">{recipe.title}</h3>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           {recipe.total_time_minutes && <div className="flex items-center gap-1"><Clock className="w-4 h-4" />{recipe.total_time_minutes}m</div>}
-                          {recipe.calories_per_serving && <div className="flex items-center gap-1"><Flame className="w-4 h-4" />{recipe.calories_per_serving} cal</div>}
                         </div>
                         <div className="pt-2 border-t">
                           <div className="flex justify-between mb-1">
@@ -548,20 +541,20 @@ const Recipes = () => {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <div className="flex gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    <span>{selectedCSVRecipe.time_to_cook_min} minutes</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Flame className="w-4 h-4" />
-                    <span>{selectedCSVRecipe.calory} calories</span>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Nutrition Information</h3>
-                  <p className="text-sm text-muted-foreground">{selectedCSVRecipe.nutrition_values}</p>
-                </div>
+                        <div className="flex gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            <span>{selectedCSVRecipe.time_to_cook_min} minutes</span>
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold mb-2">Steps</h3>
+                          <ol className="list-decimal list-inside space-y-2 text-sm">
+                            {selectedCSVRecipe.steps.split('|').map((step, idx) => (
+                              <li key={idx}>{step.trim()}</li>
+                            ))}
+                          </ol>
+                        </div>
                 <div>
                   <h3 className="font-semibold mb-2">Ingredients</h3>
                   <ul className="space-y-1">
