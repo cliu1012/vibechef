@@ -14,7 +14,155 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      food_database: {
+        Row: {
+          calories: number
+          carbs_g: number | null
+          category: string
+          created_at: string | null
+          default_serving_size: number | null
+          default_unit: string | null
+          fat_g: number | null
+          fiber_g: number | null
+          id: string
+          name: string
+          protein_g: number | null
+        }
+        Insert: {
+          calories: number
+          carbs_g?: number | null
+          category: string
+          created_at?: string | null
+          default_serving_size?: number | null
+          default_unit?: string | null
+          fat_g?: number | null
+          fiber_g?: number | null
+          id?: string
+          name: string
+          protein_g?: number | null
+        }
+        Update: {
+          calories?: number
+          carbs_g?: number | null
+          category?: string
+          created_at?: string | null
+          default_serving_size?: number | null
+          default_unit?: string | null
+          fat_g?: number | null
+          fiber_g?: number | null
+          id?: string
+          name?: string
+          protein_g?: number | null
+        }
+        Relationships: []
+      }
+      user_inventory: {
+        Row: {
+          calories: number | null
+          carbs_g: number | null
+          created_at: string | null
+          custom_name: string | null
+          expires_at: string | null
+          fat_g: number | null
+          fiber_g: number | null
+          food_id: string | null
+          id: string
+          location: string
+          protein_g: number | null
+          quantity: number
+          status: string | null
+          unit: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          calories?: number | null
+          carbs_g?: number | null
+          created_at?: string | null
+          custom_name?: string | null
+          expires_at?: string | null
+          fat_g?: number | null
+          fiber_g?: number | null
+          food_id?: string | null
+          id?: string
+          location: string
+          protein_g?: number | null
+          quantity: number
+          status?: string | null
+          unit: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          calories?: number | null
+          carbs_g?: number | null
+          created_at?: string | null
+          custom_name?: string | null
+          expires_at?: string | null
+          fat_g?: number | null
+          fiber_g?: number | null
+          food_id?: string | null
+          id?: string
+          location?: string
+          protein_g?: number | null
+          quantity?: number
+          status?: string | null
+          unit?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_inventory_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "food_database"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profiles: {
+        Row: {
+          allergies: string[] | null
+          carbs_goal_g: number | null
+          cooking_time_preference: string | null
+          created_at: string | null
+          daily_calorie_goal: number | null
+          dietary_restrictions: string[] | null
+          fat_goal_g: number | null
+          fiber_goal_g: number | null
+          id: string
+          protein_goal_g: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          allergies?: string[] | null
+          carbs_goal_g?: number | null
+          cooking_time_preference?: string | null
+          created_at?: string | null
+          daily_calorie_goal?: number | null
+          dietary_restrictions?: string[] | null
+          fat_goal_g?: number | null
+          fiber_goal_g?: number | null
+          id: string
+          protein_goal_g?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          allergies?: string[] | null
+          carbs_goal_g?: number | null
+          cooking_time_preference?: string | null
+          created_at?: string | null
+          daily_calorie_goal?: number | null
+          dietary_restrictions?: string[] | null
+          fat_goal_g?: number | null
+          fiber_goal_g?: number | null
+          id?: string
+          protein_goal_g?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
